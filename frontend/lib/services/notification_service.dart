@@ -49,30 +49,35 @@ class AutoCategorizer {
     'Food & Dining': [
       'swiggy','zomato','dominos','pizza','kfc','mcdonalds','burger',
       'restaurant','cafe','hotel','food','dhaba','chai','biryani',
+      'bakers','sweets','juice','tiffin','mess','canteen','eatery','kitchen','bake'
     ],
     'Transport': [
       'uber','ola','rapido','auto','cab','taxi','metro','irctc',
       'train','flight','indigo','petrol','diesel','fuel','toll','redbus',
+      'makemytrip','travels','tours','rentals','logistics'
     ],
     'Grocery': [
       'bigbasket','grofers','blinkit','jiomart','dmart','reliance fresh',
       'grocery','vegetables','milk','dairy','supermarket','kirana',
+      'traders','mart','provision','general store','bazaar','shoppe','stores','enterprises'
     ],
     'Bills': [
       'airtel','jio','vodafone','bsnl','recharge','electricity','bescom',
       'tneb','water','gas','cylinder','netflix','hotstar','spotify',
-      'broadband','wifi','insurance','lic','postpaid',
+      'broadband','wifi','insurance','lic','postpaid','cable','power','telecom','agency'
     ],
     'Health': [
       'pharmacy','medical','hospital','clinic','doctor','apollo',
       'netmeds','pharmeasy','1mg','medplus','diagnostics','medicine',
+      'pharma','medicals','care','sanjeevani'
     ],
     'Shopping': [
       'amazon','flipkart','myntra','ajio','nykaa','meesho','snapdeal',
       'reliance digital','croma','shopping','mall','store',
+      'garments','textiles','fashion','boutique','electronics','hardware','mobiles','jewellers'
     ],
     'Transfer': [
-      'transfer','sent to','paid to','wallet','neft','imps','rtgs',
+      'transfer','sent to','paid to','wallet','neft','imps','rtgs'
     ],
   };
 

@@ -127,7 +127,7 @@ class UpiNotificationService : NotificationListenerService() {
 
         logDebug("New message from $appName ($packageName): '$full'")
 
-        val parsed = parseUpi(full, appName, sbn.postTime)
+        val parsed = parseUpi(full, appName, sbn.postTime, title)
         if (parsed == null) {
             logDebug("Notification ignored: Not matching transaction patterns or is an incoming/OTP/mandate notification.")
             return
@@ -222,8 +222,9 @@ class UpiNotificationService : NotificationListenerService() {
         }
     }
 
-    private fun parseUpi(text: String, appName: String, postTime: Long): Map<String, Any>? {
+    private fun parseUpi(text: String, appName: String, postTime: Long, title: String): Map<String, Any>? {
         val lowerText = text.lowercase()
+        val lowerTitle = title.lowercase()
 
         // Filter out OTP/Verification messages
         val isOtp = lowerText.contains("otp") ||
@@ -314,7 +315,16 @@ class UpiNotificationService : NotificationListenerService() {
             lowerText.contains("paytm") -> "Paytm"
             lowerText.contains("bhim") -> "BHIM"
             lowerText.contains("amazon pay") || lowerText.contains("amazonpay") -> "AmazonPay"
-            else -> appName
+            lowerTitle.contains("sbi") || lowerText.contains("sbi") -> "SBI"
+            lowerTitle.contains("hdfc") || lowerText.contains("hdfc") -> "HDFC"
+            lowerTitle.contains("icici") || lowerText.contains("icici") -> "ICICI"
+            lowerTitle.contains("axis") || lowerText.contains("axis bank") -> "Axis Bank"
+            lowerTitle.contains("kvb") || lowerText.contains("karur vysya") -> "KVB"
+            lowerTitle.contains("indbnk") || lowerText.contains("indian bank") -> "Indian Bank"
+            lowerTitle.contains("pnb") || lowerText.contains("punjab national") -> "PNB"
+            lowerTitle.contains("bob") || lowerText.contains("bank of baroda") -> "Bank of Baroda"
+            lowerTitle.contains("kotak") || lowerText.contains("kotak") -> "Kotak"
+            else -> if (appName == "SMS") "Bank Transfer" else appName
         }
 
         return buildMap {
@@ -384,7 +394,7 @@ class UpiNotificationService : NotificationListenerService() {
         )
         
         private val PAYEE_PATTERN = Pattern.compile(
-            "(?:to|paid to|payment to|spent at|spent on|transfer to|towards|at|info[:\\s]+)\\s+([\\w\\s@.\\-_&]+?)(?:\\s+on|\\s+via|\\s+ref|\\s+upi|\\s+linked|\\s+was|\\s+is|\\s+of|\\s+using|\\s+txn|\\s+transaction|\\s+ending|\\s+bal|\\s+balance|\\s+avail|\\s*\\d|\$)",
+            "(?:to|paid to|payment to|spent at|spent on|transfer to|towards|at|info[:\\s]+|from|received from)\\s+([\\w\\s@\\-_&]+?)(?:\\s+on|\\s+via|\\s+ref|\\s+upi|\\s+linked|\\s+was|\\s+is|\\s+of|\\s+using|\\s+txn|\\s+transaction|\\s+ending|\\s+bal|\\s+balance|\\s+avail|\\.rrn|\\.info|\\.avl|\\.bal|\\s*\\d|\$)",
             Pattern.CASE_INSENSITIVE
         )
         
@@ -469,13 +479,13 @@ class UpiNotificationService : NotificationListenerService() {
 
 object AutoCategorizer {
     private val rules = mapOf(
-        "Food & Dining" to listOf("swiggy","zomato","dominos","pizza","kfc","mcdonalds","burger","restaurant","cafe","food","dhaba","biryani","chai"),
-        "Transport"     to listOf("uber","ola","rapido","auto","cab","taxi","metro","irctc","petrol","diesel","fuel","toll","redbus","makemytrip"),
-        "Grocery"       to listOf("bigbasket","grofers","blinkit","jiomart","dmart","reliance fresh","grocery","vegetables","milk","kirana","supermarket"),
-        "Bills"         to listOf("airtel","jio","vodafone","bsnl","recharge","electricity","bescom","tneb","water","gas","netflix","hotstar","spotify","insurance","lic","broadband"),
-        "Health"        to listOf("pharmacy","medical","hospital","clinic","doctor","apollo","netmeds","pharmeasy","1mg","medicine","diagnostics"),
-        "Shopping"      to listOf("amazon","flipkart","myntra","ajio","nykaa","meesho","croma","shopping","mall","store"),
-        "Transfer"      to listOf("transfer","sent to","paid to","wallet","neft","imps","rtgs"),
+        "Food & Dining" to listOf("swiggy","zomato","dominos","pizza","kfc","mcdonalds","burger","restaurant","cafe","food","dhaba","biryani","chai","bakers","sweets","juice","tiffin","mess","canteen","eatery","kitchen","bake"),
+        "Transport"     to listOf("uber","ola","rapido","auto","cab","taxi","metro","irctc","petrol","diesel","fuel","toll","redbus","makemytrip","travels","tours","rentals","logistics"),
+        "Grocery"       to listOf("bigbasket","grofers","blinkit","jiomart","dmart","reliance fresh","grocery","vegetables","milk","kirana","supermarket","traders","mart","provision","general store","bazaar","shoppe","stores","enterprises"),
+        "Bills"         to listOf("airtel","jio","vodafone","bsnl","recharge","electricity","bescom","tneb","water","gas","netflix","hotstar","spotify","insurance","lic","broadband","cable","power","telecom","agency"),
+        "Health"        to listOf("pharmacy","medical","hospital","clinic","doctor","apollo","netmeds","pharmeasy","1mg","medicine","diagnostics","pharma","medicals","care","sanjeevani"),
+        "Shopping"      to listOf("amazon","flipkart","myntra","ajio","nykaa","meesho","croma","shopping","mall","store","garments","textiles","fashion","boutique","electronics","hardware","mobiles","jewellers"),
+        "Transfer"      to listOf("transfer","sent to","paid to","wallet","neft","imps","rtgs")
     )
 
     fun detect(text: String): String {

@@ -153,13 +153,13 @@ class ApiService {
   }
 
   Future<List<Expense>> getExpenses({
-    int page = 1, int limit = 200,
-    int? month, int? year, String? category,
+    int page = 1, int limit = 500,
+    String? startDate, String? endDate, String? category,
   }) async {
     final res = await _dio.get('/api/expenses', queryParameters: {
       'page': page, 'limit': limit,
-      if (month    != null) 'month':    month,
-      if (year     != null) 'year':     year,
+      if (startDate != null) 'startDate': startDate,
+      if (endDate != null) 'endDate': endDate,
       if (category != null) 'category': category,
     });
     final list = res.data['expenses'] as List;

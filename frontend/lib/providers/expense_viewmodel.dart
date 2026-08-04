@@ -14,8 +14,8 @@ class ExpenseViewModel extends ChangeNotifier {
   bool loading = false;
   String? error;
   
-  int selectedMonth = DateTime.now().month;
-  int selectedYear = DateTime.now().year;
+  DateTime filterStartDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime filterEndDate = DateTime.now();
   String filterCategory = 'All';
   String sortBy = 'date';
   
@@ -46,15 +46,21 @@ class ExpenseViewModel extends ChangeNotifier {
   }
 
   // --- COMPUTED (Delegated to Service) ---
-  List<Expense> get filtered => _service.filterAndSort(expenses, selectedMonth, selectedYear, filterCategory, sortBy);
-  List<Expense> get monthExpenses => expenses.where((e) => e.date.month == selectedMonth && e.date.year == selectedYear).toList();
-  double get monthTotal => _service.calculateMonthTotal(monthExpenses);
-  double get monthIncome => _service.calculateMonthIncome(monthExpenses);
+  List<Expense> get filtered => _service.filterAndSort(expenses, filterStartDate, filterEndDate, filterCategory, sortBy);
+  
+  List<Expense> get dateRangeExpenses => expenses.where((e) {
+        final d = DateTime(e.date.year, e.date.month, e.date.day);
+        final s = DateTime(filterStartDate.year, filterStartDate.month, filterStartDate.day);
+        final en = DateTime(filterEndDate.year, filterEndDate.month, filterEndDate.day);
+        return !d.isBefore(s) && !d.isAfter(en);
+      }).toList();
+  double get monthTotal => _service.calculateMonthTotal(dateRangeExpenses);
+  double get monthIncome => _service.calculateMonthIncome(dateRangeExpenses);
   double get todayTotal => _service.calculateTodayTotal(expenses);
-  Map<String, double> get categoryTotals => _service.calculateCategoryTotals(monthExpenses);
-  Map<String, double> get appTotals => _service.calculateAppTotals(monthExpenses);
-  Map<String, double> get merchantTotals => _service.calculateMerchantTotals(monthExpenses);
-  List<double> get weekdayTotals => _service.calculateWeekdayTotals(monthExpenses);
+  Map<String, double> get categoryTotals => _service.calculateCategoryTotals(dateRangeExpenses);
+  Map<String, double> get appTotals => _service.calculateAppTotals(dateRangeExpenses);
+  Map<String, double> get merchantTotals => _service.calculateMerchantTotals(dateRangeExpenses);
+  List<double> get weekdayTotals => _service.calculateWeekdayTotals(dateRangeExpenses);
   Map<String, double> get currentBalances => _service.extractCurrentBalances(expenses);
   
   int get peakDayIndex {
@@ -66,11 +72,11 @@ class ExpenseViewModel extends ChangeNotifier {
   }
 
   Expense? get maxExpense {
-    final debits = monthExpenses.where((e) => e.type == 'debit').toList();
+    final debits = dateRangeExpenses.where((e) => e.type == 'debit').toList();
     return debits.isEmpty ? null : debits.reduce((a, b) => a.amount > b.amount ? a : b);
   }
 
-  int get uniqueApps => monthExpenses.where((e) => e.type == 'debit').map((e) => e.upiApp).toSet().length;
+  int get uniqueApps => dateRangeExpenses.where((e) => e.type == 'debit').map((e) => e.upiApp).toSet().length;
   String get topApp {
     final totals = appTotals;
     if (totals.isEmpty) return '—';
@@ -79,7 +85,7 @@ class ExpenseViewModel extends ChangeNotifier {
 
   // --- ACTIONS ---
   void setTab(int t) { currentTab = t; notifyListeners(); }
-  void setMonth(int month, int year) { selectedMonth = month; selectedYear = year; load(); }
+  void setDateRange(DateTime start, DateTime end) { filterStartDate = start; filterEndDate = end; load(); }
   void setFilter(String cat) { filterCategory = cat; notifyListeners(); }
   void setSort(String s) { sortBy = s; notifyListeners(); }
 
@@ -122,7 +128,7 @@ class ExpenseViewModel extends ChangeNotifier {
     loading = true; error = null; notifyListeners();
     try {
       trackedMonths = await _repository.getTrackedMonths();
-      expenses = await _service.getExpenses(selectedMonth, selectedYear);
+      expenses = await _service.getExpenses(filterStartDate, filterEndDate);
       currentUser = await _repository.fetchAndCacheProfile();
       await _repository.cacheBalances(currentBalances);
     } catch (e) {
@@ -180,6 +186,7 @@ class ExpenseViewModel extends ChangeNotifier {
       final dateStr = data['date'] as String?;
       final date = dateStr != null ? DateTime.parse(dateStr).toLocal() : DateTime.now();
       final e = Expense(
+        id:       DateTime.now().millisecondsSinceEpoch.toString(), // Temp ID until load() is called
         name:     data['payee']    as String? ?? 'Unknown',
         amount:   (data['amount'] as num).toDouble(),
         category: data['category'] as String? ?? 'Other',
@@ -188,7 +195,8 @@ class ExpenseViewModel extends ChangeNotifier {
         date:     date,
         type:     data['type']     as String? ?? 'debit',
       );
-      addExpense(e);
+      expenses.insert(0, e);
+      notifyListeners();
     };
   }
 }

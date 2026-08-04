@@ -28,10 +28,10 @@ public class ExpenseController {
             Authentication authentication,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit,
-            @RequestParam(required = false) Integer month,
-            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
             @RequestParam(required = false) String category) throws Exception {
-        var response = expenseService.getExpenses(authentication.getName(), page, limit, month, year, category);
+        var response = expenseService.getExpenses(authentication.getName(), page, limit, startDate, endDate, category);
         return ResponseEntity.ok(response);
     }
 

@@ -33,13 +33,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final p    = context.watch<ExpenseViewModel>();
-    final days = DateUtils.getDaysInMonth(p.selectedYear, p.selectedMonth);
+    final days = p.filterEndDate.difference(p.filterStartDate).inDays + 1;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Daily data
+    // Daily data (mapped by days since start date)
     final dailyMap = <int, double>{};
-    for (final e in p.monthExpenses) dailyMap[e.date.day] = (dailyMap[e.date.day] ?? 0) + e.amount;
-    final maxDaily = dailyMap.values.fold(0.0, (a, b) => a > b ? a : b);
+    for (final e in p.dateRangeExpenses) {
+      // Create date-only references to compare correctly ignoring time
+      final d = DateTime(e.date.year, e.date.month, e.date.day);
+      final s = DateTime(p.filterStartDate.year, p.filterStartDate.month, p.filterStartDate.day);
+      int dayIndex = d.difference(s).inDays;
+      if (dayIndex >= 0 && dayIndex < days) {
+        dailyMap[dayIndex] = (dailyMap[dayIndex] ?? 0) + e.amount;
+      }
+    }
+    final maxDaily = dailyMap.isEmpty ? 0.0 : dailyMap.values.fold(0.0, (a, b) => a > b ? a : b);
 
     final cats    = p.categoryTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final maxCat  = cats.isEmpty ? 1.0 : cats.first.value;
@@ -57,9 +65,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Theme.of(context).colorScheme.onSurface,
               ),
               label: Text(
-                DateFormat('MMM yyyy').format(DateTime(p.selectedYear, p.selectedMonth)),
+                '${DateFormat('MMM d').format(p.filterStartDate)} - ${DateFormat('MMM d').format(p.filterEndDate)}',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
@@ -69,24 +77,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (p.trackedMonths.isNotEmpty) {
                   int minYear = p.trackedMonths.map((m) => m['year']!).reduce((a, b) => a < b ? a : b);
                   int minMonth = p.trackedMonths.where((m) => m['year'] == minYear).map((m) => m['month']!).reduce((a, b) => a < b ? a : b);
-                  firstAllowed = DateTime(minYear, minMonth);
+                  firstAllowed = DateTime(minYear, minMonth, 1);
                 }
                 
                 final now = DateTime.now();
-                // Ensure initialDate is within bounds
-                DateTime initial = DateTime(p.selectedYear, p.selectedMonth);
-                if (initial.isAfter(now)) initial = now;
-                if (initial.isBefore(firstAllowed)) initial = firstAllowed;
+                DateTime initialStart = p.filterStartDate;
+                DateTime initialEnd = p.filterEndDate;
+                
+                if (initialStart.isBefore(firstAllowed)) initialStart = firstAllowed;
+                if (initialEnd.isAfter(now)) initialEnd = now;
 
-                final picked = await showDatePicker(
+                final picked = await showDateRangePicker(
                   context: context,
-                  initialDate: initial,
+                  initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
                   firstDate: firstAllowed,
-                  lastDate: now, // Prevents selecting future months/dates
-                  initialDatePickerMode: DatePickerMode.year,
+                  lastDate: now,
                 );
                 if (picked != null) {
-                  p.setMonth(picked.month, picked.year);
+                  p.setDateRange(picked.start, picked.end);
                 }
               },
             ),
@@ -106,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // #15 — Show error state when loading fails
       body: p.loading
           ? const Center(child: CircularProgressIndicator())
-          : p.error != null && p.monthExpenses.isEmpty
+          : p.error != null && p.dateRangeExpenses.isEmpty
               ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.wifi_off_rounded, size: 48, color: Color(0xFF888780)),
                   const SizedBox(height: 12),
@@ -157,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                       mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.6,
                       children: [
-                        MetricCard(label: 'Total spent', value: fmtAmt(p.monthTotal), sub: '${p.monthExpenses.length} transactions', valueColor: AppTheme.danger),
+                        MetricCard(label: 'Total spent', value: fmtAmt(p.monthTotal), sub: '${p.dateRangeExpenses.length} transactions', valueColor: AppTheme.danger),
                         MetricCard(label: 'Total income', value: fmtAmt(p.monthIncome), sub: 'This month', valueColor: AppTheme.success),
                         MetricCard(label: 'Daily spent', value: fmtAmt(p.todayTotal), sub: 'Today', valueColor: AppTheme.warning),
                         MetricCard(label: 'Largest txn', value: fmtAmt(p.maxExpense?.amount ?? 0), sub: p.maxExpense?.name ?? '—'),
@@ -209,9 +217,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   },
                                 ),
                               ),
-                              lineBarsData: [LineChartBarData(
-                                spots: List.generate(days, (i) => FlSpot((i+1).toDouble(), dailyMap[i+1] ?? 0)),
-                                isCurved: true, color: AppTheme.primary, barWidth: 2,
+                                lineBarsData: [LineChartBarData(
+                                  spots: List.generate(days, (i) => FlSpot(i.toDouble(), dailyMap[i] ?? 0)),
+                                  isCurved: true, color: AppTheme.primary, barWidth: 2,
                                 dotData: const FlDotData(show: false),
                                 belowBarData: BarAreaData(show: true, color: AppTheme.primary.withValues(alpha: 0.08)),
                               )],
@@ -239,10 +247,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   },
                                 ),
                               ),
-                              barGroups: List.generate(days, (i) => BarChartGroupData(
-                                x: i + 1,
-                                barRods: [BarChartRodData(toY: dailyMap[i+1] ?? 0, color: AppTheme.primary.withValues(alpha: 0.5), width: 6, borderRadius: BorderRadius.circular(3))],
-                              )),
+                                barGroups: List.generate(days, (i) => BarChartGroupData(
+                                  x: i,
+                                  barRods: [BarChartRodData(toY: dailyMap[i] ?? 0, color: AppTheme.primary.withValues(alpha: 0.5), width: 6, borderRadius: BorderRadius.circular(3))],
+                                )),
                               titlesData: _chartTitles(days),
                               gridData: FlGridData(drawVerticalLine: false, getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF1EFE8))),
                               borderData: FlBorderData(show: false),
@@ -260,10 +268,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: const Text('See all', style: TextStyle(fontSize: 12)),
                       ),
                     ),
-                    if (p.monthExpenses.isEmpty)
-                      const EmptyState(message: 'No transactions this month')
+                    if (p.dateRangeExpenses.isEmpty)
+                      const EmptyState(message: 'No transactions in this period')
                     else
-                      ...p.monthExpenses.take(5).map((e) => Column(children: [
+                      ...p.dateRangeExpenses.take(5).map((e) => Column(children: [
                         TxnTile(
                           expense: e,
                           onDelete: e.id != null ? () async {

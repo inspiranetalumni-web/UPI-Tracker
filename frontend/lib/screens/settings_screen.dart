@@ -83,8 +83,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _exportData(String format) {
     final p = context.read<ExpenseViewModel>();
     final url = ApiService().exportCsvUrl(
-      month: p.selectedMonth,
-      year: p.selectedYear,
+      month: p.filterStartDate.month,
+      year: p.filterStartDate.year,
     );
     final finalUrl = format == 'json' ? url.replaceAll('format=csv', 'format=json') : url;
 

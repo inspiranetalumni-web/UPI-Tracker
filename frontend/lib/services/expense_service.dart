@@ -4,8 +4,8 @@ import '../repositories/expense_repository.dart';
 class ExpenseService {
   final ExpenseRepository _repository = ExpenseRepository();
 
-  Future<List<Expense>> getExpenses(int month, int year) {
-    return _repository.getExpenses(month, year);
+  Future<List<Expense>> getExpenses(DateTime startDate, DateTime endDate) {
+    return _repository.getExpenses(startDate, endDate);
   }
 
   Future<Expense> addExpense(Expense e) {
@@ -22,12 +22,17 @@ class ExpenseService {
 
   List<Expense> filterAndSort(
     List<Expense> expenses,
-    int month,
-    int year,
+    DateTime startDate,
+    DateTime endDate,
     String category,
     String sortBy,
   ) {
-    var list = expenses.where((e) => e.date.month == month && e.date.year == year).toList();
+    var list = expenses.where((e) {
+      final d = DateTime(e.date.year, e.date.month, e.date.day);
+      final s = DateTime(startDate.year, startDate.month, startDate.day);
+      final en = DateTime(endDate.year, endDate.month, endDate.day);
+      return !d.isBefore(s) && !d.isAfter(en);
+    }).toList();
     if (category != 'All') {
       list = list.where((e) => e.category == category).toList();
     }

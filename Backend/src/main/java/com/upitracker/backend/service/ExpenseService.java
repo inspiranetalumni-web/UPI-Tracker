@@ -9,6 +9,9 @@ import com.google.firebase.cloud.FirestoreClient;
 import com.upitracker.backend.dto.ExpenseRequest;
 import com.upitracker.backend.model.Expense;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.client.RestTemplate;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -16,8 +19,54 @@ import java.util.stream.Collectors;
 @Service
 public class ExpenseService {
 
+    @Value("${GEMINI_API_KEY:}")
+    private String geminiApiKey;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper mapper = new ObjectMapper();
+
     private Firestore getDb() {
         return FirestoreClient.getFirestore();
+    }
+
+    private String getCategoryFromGemini(String payee) {
+        if (geminiApiKey == null || geminiApiKey.isEmpty()) return "Other";
+        try {
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
+            // STRICT PRIVACY: Prompt only contains the payee name string, no other data.
+            // HIGH EFFICIENCY: Few-shot prompt forces strict output format and improves accuracy for Indian names.
+            String prompt = "Classify the Indian merchant into one of: Food & Dining, Transport, Grocery, Bills, Health, Shopping, Transfer, Other.\n" +
+                            "Rule: Reply with ONLY the exact category name.\n" +
+                            "Examples:\n" +
+                            "Swiggy -> Food & Dining\n" +
+                            "Dmart -> Grocery\n" +
+                            "Apollo -> Health\n" +
+                            "Uber -> Transport\n" +
+                            "Amazon -> Shopping\n" +
+                            "Airtel -> Bills\n" +
+                            "Rahul -> Transfer\n" +
+                            "Merchant: " + payee + "\n" +
+                            "Category:";
+            
+            Map<String, Object> body = new HashMap<>();
+            body.put("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
+            
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            org.springframework.http.HttpEntity<Map<String, Object>> entity = new org.springframework.http.HttpEntity<>(body, headers);
+            
+            String response = restTemplate.postForObject(url, entity, String.class);
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response);
+            String text = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText().trim();
+            
+            List<String> allowed = Arrays.asList("Food & Dining", "Transport", "Grocery", "Bills", "Health", "Shopping", "Transfer");
+            for (String c : allowed) {
+                if (text.equalsIgnoreCase(c)) return c;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "Other";
     }
 
     public Object createExpense(String userId, ExpenseRequest req) throws Exception {
@@ -74,11 +123,16 @@ public class ExpenseService {
             return res;
         }
 
+        String finalCategory = req.getCategory() != null ? req.getCategory() : "Other";
+        if ("Other".equalsIgnoreCase(finalCategory) || "Unknown".equalsIgnoreCase(finalCategory)) {
+            finalCategory = getCategoryFromGemini(req.getPayee().trim());
+        }
+
         Map<String, Object> data = new HashMap<>();
         data.put("userId", userId);
         data.put("amount", req.getAmount());
         data.put("payee", req.getPayee().trim());
-        data.put("category", req.getCategory() != null ? req.getCategory() : "Other");
+        data.put("category", finalCategory);
         data.put("upiApp", req.getUpiApp() != null ? req.getUpiApp() : "Other");
         data.put("upiRef", req.getUpiRef());
         data.put("note", req.getNote());
@@ -99,7 +153,7 @@ public class ExpenseService {
         return data;
     }
 
-    public Map<String, Object> getExpenses(String userId, int page, int limit, Integer month, Integer year, String category) throws Exception {
+    public Map<String, Object> getExpenses(String userId, int page, int limit, String startDate, String endDate, String category) throws Exception {
         Firestore db = getDb();
         Query query = db.collection("expenses").whereEqualTo("userId", userId);
 
@@ -107,17 +161,20 @@ public class ExpenseService {
             query = query.whereEqualTo("category", category);
         }
 
-        if (month != null && year != null) {
-            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-            cal.set(year, month - 1, 1, 0, 0, 0);
-            cal.set(Calendar.MILLISECOND, 0);
-            Timestamp start = Timestamp.of(cal.getTime());
-
-            cal.add(Calendar.MONTH, 1);
-            Timestamp end = Timestamp.of(cal.getTime());
+        if (startDate != null && endDate != null) {
+            String sDate = startDate;
+            String eDate = endDate;
+            if (!sDate.endsWith("Z") && !sDate.contains("+") && sDate.length() >= 19) sDate += "Z";
+            if (!eDate.endsWith("Z") && !eDate.contains("+") && eDate.length() >= 19) eDate += "Z";
+            
+            Instant startInst = Instant.parse(sDate);
+            Instant endInst = Instant.parse(eDate);
+            
+            Timestamp start = Timestamp.ofTimeSecondsAndNanos(startInst.getEpochSecond(), startInst.getNano());
+            Timestamp end = Timestamp.ofTimeSecondsAndNanos(endInst.getEpochSecond(), endInst.getNano());
 
             query = query.whereGreaterThanOrEqualTo("date", start)
-                         .whereLessThan("date", end);
+                         .whereLessThanOrEqualTo("date", end);
         }
 
         query = query.orderBy("date", Query.Direction.DESCENDING);

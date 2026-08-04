@@ -20,8 +20,10 @@ class ExpenseRepository {
     }
   }
 
-  Future<List<Expense>> getExpenses(int month, int year) async {
-    return _api.getExpenses(month: month, year: year, limit: 500);
+  Future<List<Expense>> getExpenses(DateTime startDate, DateTime endDate) async {
+    final startStr = startDate.toUtc().toIso8601String();
+    final endStr = endDate.toUtc().toIso8601String();
+    return _api.getExpenses(startDate: startStr, endDate: endStr, limit: 1000);
   }
 
   Future<Expense> addExpense(Expense e) async {
