@@ -117,6 +117,10 @@ class UpiNotificationService : NotificationListenerService() {
         val appName = UPI_PACKAGES[packageName]
         
         if (appName == null) {
+            val tempText = sbn.notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.lowercase() ?: ""
+            if (tempText.contains("rs.") || tempText.contains("inr") || tempText.contains("₹") || tempText.contains("debited") || tempText.contains("credited")) {
+                logDebug("Unrecognized package ($packageName) sending possible txn.")
+            }
             return
         }
 

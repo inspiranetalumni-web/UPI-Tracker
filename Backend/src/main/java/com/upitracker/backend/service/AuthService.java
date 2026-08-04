@@ -103,7 +103,7 @@ public class AuthService {
         return u;
     }
 
-    public User updateProfile(String userId, String name, String email, String phone) throws Exception {
+    public User updateProfile(String userId, com.upitracker.backend.dto.ProfileUpdateRequest req) throws Exception {
         Firestore db = getDb();
         var docRef = db.collection("users").document(userId);
         var doc = docRef.get().get();
@@ -112,28 +112,41 @@ public class AuthService {
         Map<String, Object> update = new HashMap<>();
         User currentUser = doc.toObject(User.class);
 
-        if (name != null) {
-            String trimmedName = name.trim();
+        if (req.getName() != null) {
+            String trimmedName = req.getName().trim();
             if (trimmedName.isEmpty()) throw new IllegalArgumentException("Name cannot be empty.");
             update.put("name", trimmedName);
         }
 
-        if (email != null) {
-            String normalizedEmail = email.toLowerCase().trim();
+        if (req.getEmail() != null) {
+            String normalizedEmail = req.getEmail().toLowerCase().trim();
             if (normalizedEmail.isEmpty()) throw new IllegalArgumentException("Email cannot be empty.");
             if (!normalizedEmail.equals(currentUser.getEmail())) {
                 throw new SecurityException("Email updates require verification. Please use the dedicated email change flow.");
             }
         }
 
-        if (phone != null) {
-            String trimmedPhone = phone.trim();
+        if (req.getPhone() != null) {
+            String trimmedPhone = req.getPhone().trim();
             if (trimmedPhone.length() < 10) throw new IllegalArgumentException("Mobile number must be at least 10 digits.");
             
             QuerySnapshot phoneSnapshot = db.collection("users").whereEqualTo("phone", trimmedPhone).get().get();
             boolean exists = phoneSnapshot.getDocuments().stream().anyMatch(d -> !d.getId().equals(userId));
             if (exists) throw new IllegalArgumentException("Mobile number already in use.");
             update.put("phone", trimmedPhone);
+        }
+
+        if (req.getBudgets() != null) {
+            update.put("budgets", req.getBudgets());
+        }
+        if (req.getGoals() != null) {
+            update.put("goals", req.getGoals());
+        }
+        if (req.getBalances() != null) {
+            update.put("balances", req.getBalances());
+        }
+        if (req.getEnableNotifications() != null) {
+            update.put("enableNotifications", req.getEnableNotifications());
         }
 
         if (!update.isEmpty()) {

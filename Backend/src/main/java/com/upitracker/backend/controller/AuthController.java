@@ -43,7 +43,7 @@ public class AuthController {
     @PatchMapping("/profile")
     public ResponseEntity<?> updateProfile(Authentication authentication, @RequestBody ProfileUpdateRequest req) {
         try {
-            User updatedUser = authService.updateProfile(authentication.getName(), req.getName(), req.getEmail(), req.getPhone());
+            User updatedUser = authService.updateProfile(authentication.getName(), req);
             return ResponseEntity.ok(java.util.Map.of("user", updatedUser));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));

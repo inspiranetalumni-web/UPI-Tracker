@@ -11,4 +11,9 @@ public class User {
     private String phone;
     private Boolean isVerified;
     private String createdAt;
+    
+    private java.util.Map<String, Double> budgets;
+    private java.util.List<java.util.Map<String, Object>> goals;
+    private java.util.Map<String, Double> balances;
+    private Boolean enableNotifications;
 }
