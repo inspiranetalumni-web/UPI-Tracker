@@ -185,10 +185,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final user = p.currentUser;
 
     if (user != null && !_fieldsInitialized) {
-      _nameCtrl.text = user['name']?.toString() ?? '';
-      _emailCtrl.text = user['email']?.toString() ?? '';
-      _phoneCtrl.text = user['phone']?.toString() ?? '';
       _fieldsInitialized = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _nameCtrl.text = user['name']?.toString() ?? '';
+          _emailCtrl.text = user['email']?.toString() ?? '';
+          _phoneCtrl.text = user['phone']?.toString() ?? '';
+        }
+      });
     }
 
     return Scaffold(

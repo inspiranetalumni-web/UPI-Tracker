@@ -178,7 +178,7 @@ class BudgetScreen extends StatelessWidget {
           ...p.budgets.entries.map((entry) {
             final spent  = cats[entry.key] ?? 0.0;
             final limit  = entry.value;
-            final pct    = (spent / limit).clamp(0.0, 1.0);
+            final pct    = limit > 0 ? (spent / limit).clamp(0.0, 1.0) : 0.0;
             final col    = pct >= 0.9 ? AppTheme.danger : pct >= 0.7 ? AppTheme.warning : AppTheme.success;
             final catCol = AppColors.category[entry.key] ?? const Color(0xFF888780);
             final ico    = AppIcons.category[entry.key]  ?? Icons.more_horiz;

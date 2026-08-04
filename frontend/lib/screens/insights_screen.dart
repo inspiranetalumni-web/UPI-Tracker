@@ -13,20 +13,12 @@ class InsightsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p       = context.watch<ExpenseViewModel>();
-    final cats    = p.categoryTotals;
-    final total   = p.monthTotal;
-    final topCat  = cats.isNotEmpty ? cats.entries.reduce((a, b) => a.value > b.value ? a : b) : null;
-    final foodPct = total > 0 ? ((cats['Food & Dining'] ?? 0) / total * 100).round() : 0;
     final dayTotals = p.weekdayTotals;
     final maxDay    = dayTotals.fold(0.0, (a, b) => a > b ? a : b);
-    // #9 fix — use index-aware peakDayIndex from provider, not indexOf which breaks on ties
-    final peakIdx = p.peakDayIndex;
-    final peakDay = peakIdx >= 0 ? _weekdays[peakIdx] : '—';
     final merchants = p.merchantTotals;
     final maxM    = merchants.isNotEmpty ? merchants.values.reduce((a, b) => a > b ? a : b) : 1.0;
     // #21 — theme-aware chart colors
     final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final barBase = isDark ? const Color(0xFF2D5580) : const Color(0xFFB5D4F4);
     final gridLine = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF1EFE8);
 
     return Scaffold(
@@ -209,45 +201,4 @@ class InsightsScreen extends StatelessWidget {
   }
 }
 
-class _InsightCard extends StatelessWidget {
-  final String tag, title, subtitle;
-  final Color tagColor, tagTextColor;
-  final IconData iconData;
-  final Color? iconColor;
 
-  const _InsightCard({
-    required this.tag, required this.title, required this.subtitle,
-    required this.tagColor, required this.tagTextColor,
-    IconData? icon, this.iconColor,
-  }) : iconData = icon ?? Icons.lightbulb_outline;
-
-  @override
-  Widget build(BuildContext context) {
-    final effIconColor = iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(color: tagColor, borderRadius: BorderRadius.circular(10)),
-            child: Icon(iconData, size: 18, color: effIconColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(color: tagColor, borderRadius: BorderRadius.circular(20)),
-              child: Text(tag, style: TextStyle(fontSize: 10, color: tagTextColor, fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(height: 5),
-            Text(title,    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 3),
-            Text(subtitle, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4)),
-          ])),
-        ]),
-      ),
-    );
-  }
-}

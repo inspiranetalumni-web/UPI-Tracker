@@ -93,6 +93,7 @@ class ExpenseViewModel extends ChangeNotifier {
   Future<void> setEnableNotifications(bool val) async {
     enableNotifications = val;
     await _repository.setNotificationsEnabled(val);
+    ApiService().updateProfile(enableNotifications: val); // Fire and forget sync
     notifyListeners();
   }
 
@@ -105,6 +106,7 @@ class ExpenseViewModel extends ChangeNotifier {
   Future<void> setBudget(String category, double amount) async {
     budgets[category] = amount;
     await _repository.saveBudgets(budgets);
+    ApiService().updateProfile(budgets: budgets); // Fire and forget sync
     notifyListeners();
   }
 
@@ -121,12 +123,14 @@ class ExpenseViewModel extends ChangeNotifier {
     }
     budgets = newBudgets;
     await _repository.saveBudgets(budgets);
+    ApiService().updateProfile(budgets: budgets); // Fire and forget sync
     notifyListeners();
   }
 
   Future<void> addGoal(String name, double target) async {
     goals.add(SavingsGoal(name: name, target: target, saved: 0));
     await _repository.saveGoals(goals);
+    ApiService().updateProfile(goals: goals.map((g) => g.toJson()).toList()); // Fire and forget sync
     notifyListeners();
   }
 
@@ -134,12 +138,14 @@ class ExpenseViewModel extends ChangeNotifier {
     final current = goals[index].saved;
     goals[index] = goals[index].copyWith(saved: (current + amount).clamp(0, goals[index].target));
     await _repository.saveGoals(goals);
+    ApiService().updateProfile(goals: goals.map((g) => g.toJson()).toList()); // Fire and forget sync
     notifyListeners();
   }
 
   Future<void> removeGoal(int index) async {
     goals.removeAt(index);
     await _repository.saveGoals(goals);
+    ApiService().updateProfile(goals: goals.map((g) => g.toJson()).toList()); // Fire and forget sync
     notifyListeners();
   }
 
@@ -165,7 +171,14 @@ class ExpenseViewModel extends ChangeNotifier {
       trackedMonths = await _repository.getTrackedMonths();
       expenses = await _service.getExpenses(filterStartDate, filterEndDate);
       currentUser = await _repository.fetchAndCacheProfile();
+      
+      // Re-read local values since fetchAndCacheProfile might have overwritten them with synced data
+      budgets = await _repository.getBudgets();
+      goals = await _repository.getGoals();
+      enableNotifications = await _repository.getNotificationsEnabled();
+      
       await _repository.cacheBalances(currentBalances);
+      ApiService().updateProfile(balances: currentBalances); // Fire and forget sync
       fetchInsights(); // Non-blocking
     } catch (e) {
       error = _repository.parseError(e as Exception);

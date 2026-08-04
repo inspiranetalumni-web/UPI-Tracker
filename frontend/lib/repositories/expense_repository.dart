@@ -62,6 +62,20 @@ class ExpenseRepository {
       if (user != null) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('cached_user', jsonEncode(user));
+        
+        // Sync app data from backend to local storage
+        if (user['budgets'] != null) {
+          await prefs.setString('budgets', jsonEncode(user['budgets']));
+        }
+        if (user['goals'] != null) {
+          await prefs.setString('savings_goals', jsonEncode(user['goals']));
+        }
+        if (user['balances'] != null) {
+          await prefs.setString('current_balances', jsonEncode(user['balances']));
+        }
+        if (user['enableNotifications'] != null) {
+          await prefs.setBool('enable_notifications', user['enableNotifications'] as bool);
+        }
       }
       return user;
     } catch (_) {

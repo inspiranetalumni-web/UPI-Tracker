@@ -94,7 +94,6 @@ class _SplashState extends State<_Splash> {
     final ok = await ApiService().isLoggedIn();
     if (mounted) {
       if (ok) {
-        context.read<ExpenseViewModel>().load();
         Navigator.pushReplacementNamed(context, '/home');
       } else {
         Navigator.pushReplacementNamed(context, '/login');
@@ -119,6 +118,14 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ExpenseViewModel>().load();
+    });
+  }
+
   final _screens = [
     const HomeScreen(),
     const TransactionsScreen(),

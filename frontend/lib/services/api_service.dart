@@ -7,7 +7,7 @@ import '../models/expense.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-final String _baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+String get _baseUrl => dotenv.env['API_BASE_URL'] ?? '';
 
 class ApiService {
   static final ApiService _i = ApiService._();
@@ -132,11 +132,21 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> updateProfile({String? name, String? email, String? phone}) async {
+  Future<Map<String, dynamic>> updateProfile({
+    String? name, String? email, String? phone,
+    Map<String, double>? budgets,
+    List<dynamic>? goals,
+    Map<String, double>? balances,
+    bool? enableNotifications,
+  }) async {
     final res = await _dio.patch('/api/auth/profile', data: {
       if (name  != null) 'name':  name,
       if (email != null) 'email': email,
       if (phone != null) 'phone': phone,
+      if (budgets != null) 'budgets': budgets,
+      if (goals != null) 'goals': goals,
+      if (balances != null) 'balances': balances,
+      if (enableNotifications != null) 'enableNotifications': enableNotifications,
     });
     return res.data as Map<String, dynamic>;
   }
