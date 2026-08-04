@@ -1,5 +1,5 @@
 # Stage 1: Build the application
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM eclipse-temurin:21-jdk-jammy AS builder
 
 WORKDIR /app
 COPY gradlew .
@@ -18,13 +18,13 @@ COPY src src
 RUN ./gradlew build -x test --no-daemon
 
 # Stage 2: Create the production image
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
 
 # Run as non-root user for security
-RUN addgroup -S spring && adduser -S spring -G spring
+RUN groupadd -r spring && useradd -r -g spring spring
 USER spring:spring
 
 EXPOSE 8080
