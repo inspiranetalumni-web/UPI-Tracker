@@ -153,7 +153,27 @@ class BudgetScreen extends StatelessWidget {
         child: ListView(padding: const EdgeInsets.all(16), children: [
 
           // ── Budget progress ───────────────────────────────
-          const SectionHeader(title: 'MONTHLY LIMITS'),
+          Row(
+            children: [
+              const SectionHeader(title: 'MONTHLY LIMITS'),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () {
+                  p.autoSuggestBudgets();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Budgets automatically calculated based on your spend!')),
+                  );
+                },
+                icon: const Icon(Icons.auto_awesome, size: 16),
+                label: const Text('Auto-suggest'),
+                style: TextButton.styleFrom(
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 30),
+                ),
+              ),
+            ],
+          ),
           // #1 — long press or edit icon on each card to edit limit
           ...p.budgets.entries.map((entry) {
             final spent  = cats[entry.key] ?? 0.0;

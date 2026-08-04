@@ -44,6 +44,15 @@ public class ExpenseController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/insights")
+    public ResponseEntity<?> getInsights(
+            Authentication authentication,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) throws Exception {
+        var response = expenseService.getInsights(authentication.getName(), startDate, endDate);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/export")
     public ResponseEntity<?> exportExpenses(
             Authentication authentication,

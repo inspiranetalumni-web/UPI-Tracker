@@ -283,6 +283,56 @@ public class ExpenseService {
         return expenses;
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getInsights(String userId, String startDate, String endDate) throws Exception {
+        Map<String, Object> expensesData = getExpenses(userId, 1, 1000, startDate, endDate, null);
+        List<Map<String, Object>> expenses = (List<Map<String, Object>>) expensesData.get("expenses");
+        
+        if (expenses == null || expenses.isEmpty()) {
+            return Map.of("insight", "No transactions found to generate insights.");
+        }
+        
+        double total = 0;
+        Map<String, Double> categoryTotals = new HashMap<>();
+        for (Map<String, Object> e : expenses) {
+            if ("debit".equals(e.get("type"))) {
+                double amt = ((Number) e.get("amount")).doubleValue();
+                total += amt;
+                String cat = (String) e.get("category");
+                categoryTotals.put(cat, categoryTotals.getOrDefault(cat, 0.0) + amt);
+            }
+        }
+        
+        if (total == 0) {
+            return Map.of("insight", "You haven't spent anything yet. Keep up the good savings!");
+        }
+
+        if (geminiApiKey == null || geminiApiKey.isEmpty()) {
+            return Map.of("insight", "Add GEMINI_API_KEY to your backend to unlock AI insights.");
+        }
+        
+        try {
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
+            String prompt = String.format("I have spent a total of ₹%.2f. Here is the breakdown: %s. Give me ONE short, crisp, highly personalized piece of financial advice or insight based strictly on this spending. Maximum 2 sentences. Do not use asterisks or markdown formatting.", total, categoryTotals.toString());
+            
+            Map<String, Object> body = new HashMap<>();
+            body.put("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
+            
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            org.springframework.http.HttpEntity<Map<String, Object>> entity = new org.springframework.http.HttpEntity<>(body, headers);
+            
+            String response = restTemplate.postForObject(url, entity, String.class);
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response);
+            String text = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText().trim();
+            
+            return Map.of("insight", text);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Map.of("insight", "Could not generate insights at the moment. Please try again later.");
+        }
+    }
+
     public Map<String, Object> getYearlyStats(String userId, Integer year) throws Exception {
         Firestore db = getDb();
         var snapshot = db.collection("expenses").whereEqualTo("userId", userId).get().get();

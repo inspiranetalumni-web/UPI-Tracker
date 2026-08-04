@@ -223,8 +223,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                 dotData: const FlDotData(show: false),
                                 belowBarData: BarAreaData(show: true, color: AppTheme.primary.withValues(alpha: 0.08)),
                               )],
-                              titlesData: _chartTitles(days),
-                              gridData: FlGridData(drawVerticalLine: false, getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF1EFE8))),
+                              titlesData: _chartTitles(context, days, maxDaily),
+                              gridData: FlGridData(
+                                show: true,
+                                drawVerticalLine: false, 
+                                horizontalInterval: maxDaily > 0 ? (maxDaily / 4).ceilToDouble() : 100,
+                                getDrawingHorizontalLine: (_) => FlLine(
+                                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3), 
+                                  strokeWidth: 1, 
+                                  dashArray: [4, 4]
+                                ),
+                              ),
                               borderData: FlBorderData(show: false),
                             ))
                           : BarChart(BarChartData(
@@ -251,10 +260,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                   x: i,
                                   barRods: [BarChartRodData(toY: dailyMap[i] ?? 0, color: AppTheme.primary.withValues(alpha: 0.5), width: 6, borderRadius: BorderRadius.circular(3))],
                                 )),
-                              titlesData: _chartTitles(days),
-                              gridData: FlGridData(drawVerticalLine: false, getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF1EFE8))),
+                              titlesData: _chartTitles(context, days, maxDaily),
+                              gridData: FlGridData(
+                                show: true,
+                                drawVerticalLine: false, 
+                                horizontalInterval: maxDaily > 0 ? (maxDaily / 4).ceilToDouble() : 100,
+                                getDrawingHorizontalLine: (_) => FlLine(
+                                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3), 
+                                  strokeWidth: 1, 
+                                  dashArray: [4, 4]
+                                ),
+                              ),
                               borderData: FlBorderData(show: false),
-                              maxY: maxDaily * 1.2,
+                              maxY: maxDaily > 0 ? maxDaily * 1.2 : 100,
                             )),
                     ),
                     const SizedBox(height: 20),
@@ -303,12 +321,25 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   );
 
-  FlTitlesData _chartTitles(int days) => FlTitlesData(
-    leftTitles:   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+  FlTitlesData _chartTitles(BuildContext context, int days, double maxDaily) => FlTitlesData(
+    leftTitles: AxisTitles(
+      sideTitles: SideTitles(
+        showTitles: true,
+        reservedSize: 40,
+        getTitlesWidget: (v, meta) {
+          if (v == meta.max || v == meta.min) return const SizedBox.shrink();
+          return Text(
+            '₹${v.toInt()}', 
+            style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            textAlign: TextAlign.left,
+          );
+        },
+      ),
+    ),
     rightTitles:  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
     topTitles:    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
     bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 22,
-      getTitlesWidget: (v, _) => v % 5 == 0 ? Text('${v.toInt()}', style: const TextStyle(fontSize: 10)) : const SizedBox(),
+      getTitlesWidget: (v, _) => v % 5 == 0 ? Text('${v.toInt()}', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant)) : const SizedBox(),
     )),
   );
 }

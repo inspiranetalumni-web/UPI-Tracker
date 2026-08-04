@@ -105,7 +105,14 @@ class UpiNotificationService : NotificationListenerService() {
         }
     }
 
+    private val recentProcessedHashes = mutableMapOf<Int, Long>()
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        if ((sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+            logDebug("Ignoring group summary notification to prevent duplicates.")
+            return
+        }
+
         val packageName = sbn.packageName
         val appName = UPI_PACKAGES[packageName]
         
@@ -124,6 +131,18 @@ class UpiNotificationService : NotificationListenerService() {
         val linesJoined = textLines?.joinToString(" ") { it.toString() } ?: ""
 
         val full = "$title $text $bigText $subText $linesJoined"
+
+        val hash = full.hashCode()
+        val now = System.currentTimeMillis()
+        
+        // Clean up old hashes (older than 10 seconds)
+        recentProcessedHashes.entries.removeIf { now - it.value > 10000 }
+        
+        if (recentProcessedHashes.containsKey(hash)) {
+            logDebug("Ignoring duplicate notification (processed recently).")
+            return
+        }
+        recentProcessedHashes[hash] = now
 
         logDebug("New message from $appName ($packageName): '$full'")
 
@@ -204,7 +223,7 @@ class UpiNotificationService : NotificationListenerService() {
                 android.app.Notification.Builder(context)
             }
 
-            val iconId = context.resources.getIdentifier("launcher_icon", "mipmap", context.packageName)
+            val iconId = context.resources.getIdentifier("ic_notification", "drawable", context.packageName)
             val smallIcon = if (iconId != 0) iconId else android.R.drawable.ic_dialog_info
 
             builder.setSmallIcon(smallIcon)
@@ -394,7 +413,7 @@ class UpiNotificationService : NotificationListenerService() {
         )
         
         private val PAYEE_PATTERN = Pattern.compile(
-            "(?:to|paid to|payment to|spent at|spent on|transfer to|towards|at|info[:\\s]+|from|received from)\\s+([\\w\\s@\\-_&]+?)(?:\\s+on|\\s+via|\\s+ref|\\s+upi|\\s+linked|\\s+was|\\s+is|\\s+of|\\s+using|\\s+txn|\\s+transaction|\\s+ending|\\s+bal|\\s+balance|\\s+avail|\\.rrn|\\.info|\\.avl|\\.bal|\\s*\\d|\$)",
+            "(?:to|paid to|payment to|spent at|spent on|transfer to|towards|at|info[:\\s]+|from|received from|by)\\s+([\\w\\s@\\-_&]+?)(?:\\s+on|\\s+via|\\s+ref|\\s+upi|\\s+linked|\\s+was|\\s+is|\\s+of|\\s+using|\\s+txn|\\s+transaction|\\s+ending|\\s+bal|\\s+balance|\\s+avail|\\.rrn|\\.info|\\.avl|\\.bal|\\s*\\d|\$)",
             Pattern.CASE_INSENSITIVE
         )
         

@@ -180,6 +180,14 @@ class ApiService {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getInsights({String? startDate, String? endDate}) async {
+    final res = await _dio.get('/api/expenses/insights', queryParameters: {
+      if (startDate != null) 'startDate': startDate,
+      if (endDate != null) 'endDate': endDate,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<void> deleteExpense(String id) => _dio.delete('/api/expenses/$id');
 
   Future<Expense> updateExpense(String id, Map<String, dynamic> data) async {

@@ -37,45 +37,59 @@ class InsightsScreen extends StatelessWidget {
 
         // ── Smart insight cards ───────────────────────
         const SectionHeader(title: 'SMART INSIGHTS'),
-        if (topCat != null) _InsightCard(
-          tag: 'Top category',
-          tagColor: isDark ? const Color(0xFF162B44) : const Color(0xFFE6F1FB),
-          tagTextColor: isDark ? const Color(0xFF8AB9E8) : const Color(0xFF0C447C),
-          title: '${topCat.key} is your biggest expense',
-          subtitle: 'You spent ${fmtAmt(topCat.value)} (${total > 0 ? (topCat.value / total * 100).round() : 0}% of total) on ${topCat.key} this month.',
-          icon: AppIcons.category[topCat.key] ?? Icons.category,
-          iconColor: AppColors.category[topCat.key] ?? AppTheme.primary,
-        ),
-        _InsightCard(
-          tag: foodPct > 35 ? 'Food alert' : 'Food healthy',
-          tagColor: foodPct > 35
-              ? (isDark ? const Color(0xFF4C1D1D) : const Color(0xFFFCEBEB))
-              : (isDark ? const Color(0xFF1A330E) : const Color(0xFFEAF3DE)),
-          tagTextColor: foodPct > 35
-              ? (isDark ? const Color(0xFFFFA5A5) : const Color(0xFF791F1F))
-              : (isDark ? const Color(0xFFAFE08D) : const Color(0xFF27500A)),
-          title: foodPct > 35 ? 'Food spend is high at $foodPct%' : 'Food spend is healthy at $foodPct%',
-          subtitle: foodPct > 35 ? 'Consider cooking at home to reduce dining costs.' : 'Great job keeping food costs under control.',
-          icon: Icons.restaurant_outlined,
-          iconColor: foodPct > 35 ? AppTheme.danger : AppTheme.success,
-        ),
-        _InsightCard(
-          tag: 'Peak day',
-          tagColor: isDark ? const Color(0xFF3B2A0F) : const Color(0xFFFAEEDA),
-          tagTextColor: isDark ? const Color(0xFFFCD394) : const Color(0xFF633806),
-          title: '$peakDay is your highest spend day',
-          subtitle: 'You tend to spend more on ${peakDay}s. Plan ahead to avoid impulse purchases.',
-          icon: Icons.calendar_today_outlined, iconColor: AppTheme.warning,
-        ),
-        _InsightCard(
-          tag: 'Tip',
-          tagColor: isDark ? const Color(0xFF103328) : const Color(0xFFE1F5EE),
-          tagTextColor: isDark ? const Color(0xFF94FCDA) : const Color(0xFF085041),
-          title: 'Track your no-spend days',
-          subtitle: 'Building a habit of not spending one day a week can save ₹2,000+ monthly.',
-          icon: Icons.emoji_events_outlined, iconColor: AppTheme.success,
-        ),
-        const SizedBox(height: 20),
+        if (p.aiInsight == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else
+          Card(
+            margin: const EdgeInsets.only(bottom: 20),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: isDark 
+                      ? [const Color(0xFF162032), const Color(0xFF1E2D4A)]
+                      : [const Color(0xFFF0F4FA), const Color(0xFFE2EAF4)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, size: 20, color: isDark ? Colors.amberAccent : Colors.amber.shade700),
+                      const SizedBox(width: 8),
+                      Text('AI Insight', style: TextStyle(
+                        fontSize: 14, 
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                        color: isDark ? Colors.white : Colors.black87,
+                      )),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    p.aiInsight!, 
+                    style: TextStyle(
+                      fontSize: 15, 
+                      height: 1.5,
+                      color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
         // ── Top merchants ─────────────────────────────
         const SectionHeader(title: 'TOP MERCHANTS'),
@@ -112,12 +126,18 @@ class InsightsScreen extends StatelessWidget {
         // ── Weekly pattern ────────────────────────────
         const SectionHeader(title: 'WEEKLY PATTERN'),
         Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3)),
+          ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
             child: SizedBox(
-              height: 150,
+              height: 180,
               child: BarChart(BarChartData(
                 barTouchData: BarTouchData(
+                  enabled: true,
                   touchTooltipData: BarTouchTooltipData(
                     getTooltipColor: (_) => isDark ? const Color(0xFF2C2C2C) : Colors.white,
                     tooltipBorder: BorderSide(
@@ -126,7 +146,7 @@ class InsightsScreen extends StatelessWidget {
                     ),
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       return BarTooltipItem(
-                        '${_weekdays[group.x]}\n₹${rod.toY.toStringAsFixed(2)}',
+                        '${_weekdays[group.x]}\n₹${rod.toY.toStringAsFixed(0)}',
                         TextStyle(
                           color: isDark ? Colors.white : Colors.black,
                           fontWeight: FontWeight.bold,
@@ -140,26 +160,44 @@ class InsightsScreen extends StatelessWidget {
                   x: i,
                   barRods: [BarChartRodData(
                     toY: dayTotals[i],
-                    // #21 — use theme-aware colors
-                    color: i == peakIdx ? AppTheme.primary : barBase,
-                    width: 22, borderRadius: BorderRadius.circular(4),
+                    color: AppTheme.primary,
+                    width: 18, 
+                    borderRadius: BorderRadius.circular(2), // Classic flat/slightly rounded tops
                   )],
                 )),
                 titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (v, meta) {
+                        if (v == meta.max || v == meta.min) return const SizedBox.shrink();
+                        return Text(
+                          '₹${v.toInt()}', 
+                          style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          textAlign: TextAlign.left,
+                        );
+                      },
+                    ),
+                  ),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(sideTitles: SideTitles(
-                    showTitles: true, reservedSize: 24,
+                    showTitles: true, reservedSize: 28,
                     getTitlesWidget: (v, _) => Padding(
-                      padding: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.only(top: 8),
                       child: Text(_weekdays[v.toInt()], style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     ),
                   )),
                 ),
-                gridData: FlGridData(drawVerticalLine: false, getDrawingHorizontalLine: (_) => FlLine(color: gridLine)),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false, 
+                  horizontalInterval: maxDay > 0 ? (maxDay / 4).ceilToDouble() : 100,
+                  getDrawingHorizontalLine: (_) => FlLine(color: gridLine, strokeWidth: 1, dashArray: [4, 4]),
+                ),
                 borderData: FlBorderData(show: false),
-                maxY: maxDay * 1.25,
+                maxY: maxDay > 0 ? maxDay * 1.2 : 100,
               )),
             ),
           ),

@@ -3,6 +3,7 @@ import '../models/expense.dart';
 import '../repositories/expense_repository.dart';
 import '../services/expense_service.dart';
 import '../services/notification_service.dart';
+import '../services/api_service.dart';
 
 class ExpenseViewModel extends ChangeNotifier {
   final ExpenseRepository _repository = ExpenseRepository();
@@ -99,8 +100,26 @@ class ExpenseViewModel extends ChangeNotifier {
     return "Profile updates temporarily disabled in ViewModel refactor."; // Can wire this up fully later
   }
 
+  String? aiInsight;
+
   Future<void> setBudget(String category, double amount) async {
     budgets[category] = amount;
+    await _repository.saveBudgets(budgets);
+    notifyListeners();
+  }
+
+  Future<void> autoSuggestBudgets() async {
+    final totals = categoryTotals;
+    final Map<String, double> newBudgets = Map.from(budgets);
+    for (final entry in totals.entries) {
+      if (entry.key != 'Transfer' && entry.key != 'Other') {
+        double suggested = entry.value * 1.1; // 10% headroom
+        suggested = (suggested / 100).ceil() * 100.0;
+        if (suggested < 500) suggested = 500;
+        newBudgets[entry.key] = suggested;
+      }
+    }
+    budgets = newBudgets;
     await _repository.saveBudgets(budgets);
     notifyListeners();
   }
@@ -124,6 +143,22 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> fetchInsights() async {
+    try {
+      aiInsight = null;
+      notifyListeners();
+      final res = await ApiService().getInsights(
+        startDate: filterStartDate.toIso8601String(),
+        endDate: filterEndDate.toIso8601String(),
+      );
+      aiInsight = res['insight'];
+      notifyListeners();
+    } catch (e) {
+      aiInsight = "Could not load AI insights.";
+      notifyListeners();
+    }
+  }
+
   Future<void> load() async {
     loading = true; error = null; notifyListeners();
     try {
@@ -131,6 +166,7 @@ class ExpenseViewModel extends ChangeNotifier {
       expenses = await _service.getExpenses(filterStartDate, filterEndDate);
       currentUser = await _repository.fetchAndCacheProfile();
       await _repository.cacheBalances(currentBalances);
+      fetchInsights(); // Non-blocking
     } catch (e) {
       error = _repository.parseError(e as Exception);
     } finally {
