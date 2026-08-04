@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "276190812310",
+    "project_id": "upi-tracker-49e74",
+    "storage_bucket": "upi-tracker-49e74.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:276190812310:android:72deddd814e1e33f398ab7",
+        "android_client_info": {
+          "package_name": "com.inspiranet.upitracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYliCu8Ni52XXqUMs62skyZEnK8Y4ognc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
