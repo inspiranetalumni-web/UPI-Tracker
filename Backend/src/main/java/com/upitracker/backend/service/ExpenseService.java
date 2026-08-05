@@ -90,8 +90,8 @@ public class ExpenseService {
 
         var dupSnapshot = db.collection("expenses")
                 .whereEqualTo("userId", userId)
-                .whereEqualTo("amount", req.getAmount())
-                .whereGreaterThanOrEqualTo("date", Timestamp.ofTimeSecondsAndNanos(threeMinutesAgo.getEpochSecond(), 0))
+                .orderBy("date", com.google.cloud.firestore.Query.Direction.DESCENDING)
+                .limit(10)
                 .get().get();
 
         boolean isDuplicate = false;
@@ -99,18 +99,20 @@ public class ExpenseService {
 
         for (QueryDocumentSnapshot doc : dupSnapshot.getDocuments()) {
             Expense e = doc.toObject(Expense.class);
-            if (e.getDate() != null && e.getType().equals(type)) {
+            if (e.getAmount() != null && e.getAmount().equals(req.getAmount()) && e.getDate() != null && e.getType().equals(type)) {
                 long diff = Math.abs(e.getDate().toDate().getTime() - expDate.toEpochMilli());
                 if (diff <= 3 * 60 * 1000) {
                     if (req.getUpiRef() != null && req.getUpiRef().equals(e.getUpiRef())) {
                         isDuplicate = true;
                         duplicateDoc = doc;
+                        break;
                     } else {
                         String p1 = e.getPayee().toLowerCase();
                         String p2 = req.getPayee().toLowerCase();
                         if (p1.equals(p2) || p1.equals("unknown") || p2.equals("unknown")) {
                             isDuplicate = true;
                             duplicateDoc = doc;
+                            break;
                         }
                     }
                 }
