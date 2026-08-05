@@ -144,6 +144,14 @@ class BudgetScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p    = context.watch<ExpenseViewModel>();
+
+    if (p.loading && p.expenses.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Budgets & goals')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final cats = p.categoryTotals;
 
     return Scaffold(

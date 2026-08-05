@@ -19,5 +19,18 @@
 -keepnames class kotlinx.coroutines.android.AndroidExceptionPreHandler {}
 -keepnames class kotlinx.coroutines.android.AndroidDispatcherFactory {}
 
-# Method Channel data classes
--keep class com.careersync.app.** { *; }
+# UPI Tracker App Classes
+-keep class com.inspiranet.upitracker.** { *; }
+
+# JSON parsing (used in UpiNotificationService)
+-keep class org.json.** { *; }
+
+# Networking & Storage
+-keep class retrofit2.** { *; }
+-keep class okhttp3.** { *; }
+-keep class com.jakewharton.retrofit2.adapter.kotlin.coroutines.** { *; }
+-keep class com.itkacher.okhttpprofiler.** { *; }
+-keep class java.nio.file.** { *; }
+-dontwarn retrofit2.**
+-dontwarn okhttp3.**
+-dontwarn okio.**

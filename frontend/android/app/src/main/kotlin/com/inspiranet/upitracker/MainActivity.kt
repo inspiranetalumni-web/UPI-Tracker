@@ -58,4 +58,19 @@ class MainActivity : FlutterActivity() {
         // Release channel reference so it can be recreated on next launch (#9)
         UpiNotificationService.methodChannel = null
     }
+
+    override fun onResume() {
+        super.onResume()
+        try {
+            val enabled = androidx.core.app.NotificationManagerCompat
+                .getEnabledListenerPackages(applicationContext)
+                .contains(packageName)
+            if (enabled) {
+                val componentName = android.content.ComponentName(this, UpiNotificationService::class.java)
+                android.service.notification.NotificationListenerService.requestRebind(componentName)
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
 }

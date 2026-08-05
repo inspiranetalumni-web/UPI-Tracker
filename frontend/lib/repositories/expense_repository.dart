@@ -64,10 +64,10 @@ class ExpenseRepository {
         await prefs.setString('cached_user', jsonEncode(user));
         
         // Sync app data from backend to local storage
-        if (user['budgets'] != null) {
+        if (user['budgets'] != null && (user['budgets'] as Map).isNotEmpty) {
           await prefs.setString('budgets', jsonEncode(user['budgets']));
         }
-        if (user['goals'] != null) {
+        if (user['goals'] != null && (user['goals'] as List).isNotEmpty) {
           await prefs.setString('savings_goals', jsonEncode(user['goals']));
         }
         if (user['balances'] != null) {
@@ -93,18 +93,28 @@ class ExpenseRepository {
   Future<Map<String, double>> getBudgets() async {
     final prefs = await SharedPreferences.getInstance();
     final json = prefs.getString('budgets');
-    if (json != null) {
-      final decoded = jsonDecode(json) as Map<String, dynamic>;
-      return decoded.map((k, v) => MapEntry(k, (v as num).toDouble()));
-    }
-    return {
+    final Map<String, double> defaultBudgets = {
       'Food & Dining': 3000.0,
       'Transport': 1500.0,
       'Grocery': 2500.0,
       'Bills': 2000.0,
       'Health': 1000.0,
       'Shopping': 2000.0,
+      'Transfer': 0.0,
+      'Other': 0.0,
     };
+    
+    if (json != null) {
+      final decoded = jsonDecode(json) as Map<String, dynamic>;
+      final parsed = decoded.map((k, v) => MapEntry(k, (v as num).toDouble()));
+      for (final key in defaultBudgets.keys) {
+        if (!parsed.containsKey(key)) {
+          parsed[key] = defaultBudgets[key]!;
+        }
+      }
+      return parsed;
+    }
+    return defaultBudgets;
   }
 
   Future<void> saveBudgets(Map<String, double> budgets) async {

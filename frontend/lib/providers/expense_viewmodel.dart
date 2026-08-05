@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/expense.dart';
 import '../repositories/expense_repository.dart';
 import '../services/expense_service.dart';
@@ -17,6 +19,7 @@ class ExpenseViewModel extends ChangeNotifier {
   
   DateTime filterStartDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime filterEndDate = DateTime.now();
+  bool _isCustomDateRange = false;
   String filterCategory = 'All';
   String sortBy = 'date';
   
@@ -86,7 +89,7 @@ class ExpenseViewModel extends ChangeNotifier {
 
   // --- ACTIONS ---
   void setTab(int t) { currentTab = t; notifyListeners(); }
-  void setDateRange(DateTime start, DateTime end) { filterStartDate = start; filterEndDate = end; load(); }
+  void setDateRange(DateTime start, DateTime end) { _isCustomDateRange = true; filterStartDate = start; filterEndDate = end; load(); }
   void setFilter(String cat) { filterCategory = cat; notifyListeners(); }
   void setSort(String s) { sortBy = s; notifyListeners(); }
 
@@ -98,7 +101,20 @@ class ExpenseViewModel extends ChangeNotifier {
   }
 
   Future<String?> updateUserProfile(String name, String email, String phone) async {
-    return "Profile updates temporarily disabled in ViewModel refactor."; // Can wire this up fully later
+    try {
+      final res = await ApiService().updateProfile(name: name, email: email, phone: phone);
+      if (res['user'] != null) {
+        currentUser = res['user'] as Map<String, dynamic>;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cached_user', jsonEncode(currentUser));
+      } else {
+        currentUser = await _repository.fetchAndCacheProfile();
+      }
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return _repository.parseError(e as Exception);
+    }
   }
 
   String? aiInsight;
@@ -149,7 +165,11 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  DateTime? _lastInsightFetch;
   Future<void> fetchInsights() async {
+    if (_lastInsightFetch != null && DateTime.now().difference(_lastInsightFetch!).inMinutes < 5) {
+      return; // Use cached insight
+    }
     try {
       aiInsight = null;
       notifyListeners();
@@ -158,6 +178,7 @@ class ExpenseViewModel extends ChangeNotifier {
         endDate: filterEndDate.toIso8601String(),
       );
       aiInsight = res['insight'];
+      _lastInsightFetch = DateTime.now();
       notifyListeners();
     } catch (e) {
       aiInsight = "Could not load AI insights.";
@@ -166,6 +187,11 @@ class ExpenseViewModel extends ChangeNotifier {
   }
 
   Future<void> load() async {
+    if (!_isCustomDateRange) {
+      final now = DateTime.now();
+      filterStartDate = DateTime(now.year, now.month, 1);
+      filterEndDate = now;
+    }
     loading = true; error = null; notifyListeners();
     try {
       trackedMonths = await _repository.getTrackedMonths();
@@ -234,6 +260,14 @@ class ExpenseViewModel extends ChangeNotifier {
     NotificationService.onExpense = (data) {
       final dateStr = data['date'] as String?;
       final date = dateStr != null ? DateTime.parse(dateStr).toLocal() : DateTime.now();
+      
+      final amount = (data['amount'] as num).toDouble();
+      final duplicate = expenses.any((e) => 
+        e.amount == amount && 
+        e.date.difference(date).inSeconds.abs() < 10
+      );
+      if (duplicate) return;
+
       final e = Expense(
         id:       DateTime.now().millisecondsSinceEpoch.toString(), // Temp ID until load() is called
         name:     data['payee']    as String? ?? 'Unknown',

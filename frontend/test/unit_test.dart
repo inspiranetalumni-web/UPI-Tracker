@@ -23,7 +23,7 @@ void main() {
       expect(json['upiApp'], 'GPay');
       expect(json['upiRef'], 'TXN12345');
       expect(json['note'], 'lunch');
-      expect(json['date'], date.toIso8601String());
+      expect(json['date'], date.toUtc().toIso8601String());
 
       // Simulate API response structure
       final apiJson = Map<String, dynamic>.from(json)..['_id'] = '123';

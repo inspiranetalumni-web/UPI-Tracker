@@ -38,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Daily data (mapped by days since start date)
     final dailyMap = <int, double>{};
-    for (final e in p.dateRangeExpenses) {
+    for (final e in p.dateRangeExpenses.where((e) => e.type == 'debit')) {
       // Create date-only references to compare correctly ignoring time
       final d = DateTime(e.date.year, e.date.month, e.date.day);
       final s = DateTime(p.filterStartDate.year, p.filterStartDate.month, p.filterStartDate.day);

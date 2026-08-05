@@ -136,25 +136,25 @@ class UpiNotificationService : NotificationListenerService() {
 
         val full = "$title $text $bigText $subText $linesJoined"
 
-        val hash = full.hashCode()
-        val now = System.currentTimeMillis()
-        
-        // Clean up old hashes (older than 10 seconds)
-        recentProcessedHashes.entries.removeIf { now - it.value > 10000 }
-        
-        if (recentProcessedHashes.containsKey(hash)) {
-            logDebug("Ignoring duplicate notification (processed recently).")
-            return
-        }
-        recentProcessedHashes[hash] = now
-
-        logDebug("New message from $appName ($packageName): '$full'")
-
         val parsed = parseUpi(full, appName, sbn.postTime, title)
         if (parsed == null) {
             logDebug("Notification ignored: Not matching transaction patterns or is an incoming/OTP/mandate notification.")
             return
         }
+
+        val amount = parsed["amount"] as? Double ?: 0.0
+        val upiRef = parsed["upiRef"] as? String ?: ""
+        val payee = parsed["payee"] as? String ?: "Unknown"
+        val dedupKey = "$amount-$upiRef-$payee".hashCode()
+
+        val now = System.currentTimeMillis()
+        recentProcessedHashes.entries.removeIf { now - it.value > 10000 }
+        
+        if (recentProcessedHashes.containsKey(dedupKey)) {
+            logDebug("Ignoring duplicate transaction (processed recently).")
+            return
+        }
+        recentProcessedHashes[dedupKey] = now
 
         logDebug("Successfully parsed transaction: $parsed")
 
@@ -263,41 +263,63 @@ class UpiNotificationService : NotificationListenerService() {
             return null
         }
 
+        val balanceMatcher = BALANCE_PATTERN.matcher(text)
+        val accountBalance = if (balanceMatcher.find()) balanceMatcher.group(1)?.replace(",", "")?.toDoubleOrNull() else null
+        val cleanText = balanceMatcher.replaceAll("")
+        val lowerClean = cleanText.lowercase()
+
         // Determine transaction type
         val type = when {
-            lowerText.contains("autopay cancelled") ||
-            lowerText.contains("cancelled your autopay") ||
-            lowerText.contains("mandate is successfully revoked") ||
-            lowerText.contains("mandate revoked") ||
-            lowerText.contains("autopay revoked") -> "autopay_cancelled"
+            lowerClean.contains("autopay cancelled") ||
+            lowerClean.contains("cancelled your autopay") ||
+            lowerClean.contains("mandate is successfully revoked") ||
+            lowerClean.contains("mandate revoked") ||
+            lowerClean.contains("autopay revoked") -> "autopay_cancelled"
 
-            lowerText.contains("autopay created") ||
-            lowerText.contains("mandate successfully created") ||
-            lowerText.contains("mandate created") ||
-            lowerText.contains("autopay set up") ||
-            lowerText.contains("mandate set up") -> "autopay_created"
+            lowerClean.contains("autopay created") ||
+            lowerClean.contains("mandate successfully created") ||
+            lowerClean.contains("mandate created") ||
+            lowerClean.contains("autopay set up") ||
+            lowerClean.contains("mandate set up") -> "autopay_created"
 
-            lowerText.contains("received") ||
-            lowerText.contains("refund") ||
-            lowerText.contains("deposited") ||
-            lowerText.contains("added") ||
-            lowerText.contains("paid you") ||
-            lowerText.contains("payment from") ||
-            lowerText.contains("credited to") ||
-            (lowerText.contains("credited") && 
-             !lowerText.contains("debited") && 
-             !lowerText.contains("paid") && 
-             !lowerText.contains("sent")) -> "credit"
+            lowerClean.contains("debited") || 
+            lowerClean.contains("deducted") -> "debit"
+
+            lowerClean.contains("received") ||
+            lowerClean.contains("refund") ||
+            lowerClean.contains("deposited") ||
+            lowerClean.contains("added") ||
+            lowerClean.contains("paid you") ||
+            lowerClean.contains("payment from") ||
+            lowerClean.contains("credited to") ||
+            (lowerClean.contains("credited") && 
+             !lowerClean.contains("debited") && 
+             !lowerClean.contains("paid") && 
+             !lowerClean.contains("sent")) -> "credit"
 
             else -> "debit"
         }
 
-        val balanceMatcher = BALANCE_PATTERN.matcher(text)
-        val accountBalance = if (balanceMatcher.find()) balanceMatcher.group(1)?.replace(",", "")?.toDoubleOrNull() else null
-        val cleanText = balanceMatcher.replaceAll("")
+        val detectedApp = when {
+            lowerText.contains("gpay") || lowerText.contains("google pay") || lowerText.contains("googlepay") -> "GPay"
+            lowerText.contains("phonepe") || lowerText.contains("phone pe") -> "PhonePe"
+            lowerText.contains("paytm") -> "Paytm"
+            lowerText.contains("bhim") -> "BHIM"
+            lowerText.contains("amazon pay") || lowerText.contains("amazonpay") -> "AmazonPay"
+            lowerTitle.contains("sbi") || lowerText.contains("sbi") || lowerText.contains("state bank") -> "SBI"
+            lowerTitle.contains("hdfc") || lowerText.contains("hdfc") -> "HDFC"
+            lowerTitle.contains("icici") || lowerText.contains("icici") -> "ICICI"
+            lowerTitle.contains("axis") || lowerText.contains("axis bank") -> "Axis Bank"
+            lowerTitle.contains("kvb") || lowerTitle.contains("jm-kvbupi") || lowerText.contains("karur vysya") -> "KVB"
+            lowerTitle.contains("indbnk") || lowerTitle.contains("bt-indbnk") || lowerTitle.contains("bv-indbnk") || lowerText.contains("indian bank") -> "Indian Bank"
+            lowerTitle.contains("pnb") || lowerText.contains("punjab national") -> "PNB"
+            lowerTitle.contains("bob") || lowerText.contains("bank of baroda") -> "Bank of Baroda"
+            lowerTitle.contains("kotak") || lowerText.contains("kotak") -> "Kotak"
+            else -> if (appName == "SMS") "Bank Transfer" else appName
+        }
 
         val accountMatcher = ACCOUNT_PATTERN.matcher(text)
-        val accountName = if (accountMatcher.find()) "A/c *${accountMatcher.group(1)}" else null
+        val accountName = if (accountMatcher.find()) "$detectedApp *${accountMatcher.group(1)}" else null
 
         var amount = 0.0
         if (type != "autopay_cancelled") {
@@ -324,7 +346,11 @@ class UpiNotificationService : NotificationListenerService() {
         val refMatcher = REF_PATTERN.matcher(cleanText)
         val ref = if (refMatcher.find()) refMatcher.group(1) else null
 
-        val category = AutoCategorizer.detect("$payee $text")
+        val category = if (payee == "Unknown") {
+            AutoCategorizer.detect(text)
+        } else {
+            AutoCategorizer.detect("$payee $text")
+        }
 
         val dateString = try {
             java.time.Instant.ofEpochMilli(postTime).toString()
@@ -332,23 +358,7 @@ class UpiNotificationService : NotificationListenerService() {
             java.time.Instant.now().toString()
         }
 
-        val detectedApp = when {
-            lowerText.contains("gpay") || lowerText.contains("google pay") || lowerText.contains("googlepay") -> "GPay"
-            lowerText.contains("phonepe") || lowerText.contains("phone pe") -> "PhonePe"
-            lowerText.contains("paytm") -> "Paytm"
-            lowerText.contains("bhim") -> "BHIM"
-            lowerText.contains("amazon pay") || lowerText.contains("amazonpay") -> "AmazonPay"
-            lowerTitle.contains("sbi") || lowerText.contains("sbi") -> "SBI"
-            lowerTitle.contains("hdfc") || lowerText.contains("hdfc") -> "HDFC"
-            lowerTitle.contains("icici") || lowerText.contains("icici") -> "ICICI"
-            lowerTitle.contains("axis") || lowerText.contains("axis bank") -> "Axis Bank"
-            lowerTitle.contains("kvb") || lowerText.contains("karur vysya") -> "KVB"
-            lowerTitle.contains("indbnk") || lowerText.contains("indian bank") -> "Indian Bank"
-            lowerTitle.contains("pnb") || lowerText.contains("punjab national") -> "PNB"
-            lowerTitle.contains("bob") || lowerText.contains("bank of baroda") -> "Bank of Baroda"
-            lowerTitle.contains("kotak") || lowerText.contains("kotak") -> "Kotak"
-            else -> if (appName == "SMS") "Bank Transfer" else appName
-        }
+        // detectedApp was resolved earlier
 
         return buildMap {
             put("payee",    payee)
@@ -397,7 +407,19 @@ class UpiNotificationService : NotificationListenerService() {
             "net.one97.paytm"                        to "Paytm",
             "in.org.npci.upiapp"                     to "BHIM",
             "in.amazon.mShop.android.shopping"       to "AmazonPay",
+            "com.dreamplug.credpay"                  to "CRED",
+            "com.mobikwik_new"                        to "MobiKwik",
+            "com.freecharge.android"                 to "Freecharge",
+            "com.whatsapp"                           to "WhatsApp",
+            "com.csam.icici.bank.imobile"            to "ICICI iMobile",
+            "com.sbi.lotusintouch"                   to "YONO SBI",
+            "com.navi.passport"                      to "Navi",
+            "org.altruist.Slice"                     to "Slice",
+            "com.jupiter.money"                      to "Jupiter",
+            "com.fi.money"                           to "Fi",
             "com.google.android.apps.messaging"      to "SMS",
+            "com.miui.messaging"                     to "SMS",
+            "com.xiaomi.mms"                         to "SMS",
             "com.android.mms"                        to "SMS",
             "com.samsung.android.messaging"          to "SMS",
             "com.sec.android.app.messaging"          to "SMS",
@@ -407,7 +429,6 @@ class UpiNotificationService : NotificationListenerService() {
             "com.coloros.mms"                        to "SMS",
             "com.oppo.im"                            to "SMS",
             "com.realme.im"                          to "SMS",
-            "com.xiaomi.mms"                         to "SMS",
             "com.huawei.message"                     to "SMS",
             "com.android.messaging"                  to "SMS"
         )
@@ -417,7 +438,7 @@ class UpiNotificationService : NotificationListenerService() {
         )
         
         private val PAYEE_PATTERN = Pattern.compile(
-            "(?:to|paid to|payment to|spent at|spent on|transfer to|towards|at|info[:\\s]+|from|received from|by)\\s+([\\w\\s@\\-_&]+?)(?:\\s+on|\\s+via|\\s+ref|\\s+upi|\\s+linked|\\s+was|\\s+is|\\s+of|\\s+using|\\s+txn|\\s+transaction|\\s+ending|\\s+bal|\\s+balance|\\s+avail|\\.rrn|\\.info|\\.avl|\\.bal|\\s*\\d|\$)",
+            "(?:to|paid to|payment to|spent at|spent on|transfer to|towards|at|info[:\\s]+|from|received from|by)\\s+([A-Za-z0-9\\s@\\-_&.]+?)(?:\\s+on|\\s+via|\\s+ref|\\s+upi|\\s+linked|\\s+was|\\s+is|\\s+of|\\s+using|\\s+txn|\\s+transaction|\\s+ending|\\s+bal|\\s+balance|\\s+avail|\\.rrn|\\s+rrn|\\.info|\\s+info|\\.avl|\\.bal|\\s*\\d|\$)",
             Pattern.CASE_INSENSITIVE
         )
         

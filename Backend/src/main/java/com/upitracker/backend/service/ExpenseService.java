@@ -200,6 +200,8 @@ public class ExpenseService {
             map.put("note", e.getNote());
             map.put("type", e.getType());
             map.put("date", e.getDate() != null ? e.getDate().toDate().toInstant().toString() : null);
+            if (e.getAccountBalance() != null) map.put("accountBalance", e.getAccountBalance());
+            if (e.getAccountName() != null) map.put("accountName", e.getAccountName());
             return map;
         }).collect(Collectors.toList());
 
@@ -348,6 +350,7 @@ public class ExpenseService {
 
         Map<Integer, Map<String, Number>> monthMap = new HashMap<>();
         for (Expense e : filtered) {
+            if (!"debit".equals(e.getType())) continue;
             Calendar cal = Calendar.getInstance();
             cal.setTime(e.getDate().toDate());
             int m = cal.get(Calendar.MONTH) + 1;
