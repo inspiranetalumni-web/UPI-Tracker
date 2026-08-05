@@ -28,14 +28,16 @@ public class FirebaseConfig {
                     return;
                 }
 
-                String json = String.format("{\n" +
-                        "  \"type\": \"service_account\",\n" +
-                        "  \"project_id\": \"%s\",\n" +
-                        "  \"private_key_id\": \"%s\",\n" +
-                        "  \"private_key\": \"%s\",\n" +
-                        "  \"client_email\": \"%s\",\n" +
-                        "  \"client_id\": \"dummy_client_id\"\n" +
-                        "}", projectId, privateKeyId, privateKey.replace("\\n", "\n"), clientEmail);
+                java.util.Map<String, String> creds = new java.util.HashMap<>();
+                creds.put("type", "service_account");
+                creds.put("project_id", projectId);
+                creds.put("private_key_id", privateKeyId);
+                creds.put("private_key", privateKey.replace("\\n", "\n"));
+                creds.put("client_email", clientEmail);
+                creds.put("client_id", "dummy_client_id");
+
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                String json = mapper.writeValueAsString(creds);
 
                 FirebaseOptions options = FirebaseOptions.builder()
                         .setCredentials(GoogleCredentials.fromStream(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))))

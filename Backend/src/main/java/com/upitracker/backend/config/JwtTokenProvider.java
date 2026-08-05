@@ -16,7 +16,7 @@ public class JwtTokenProvider {
     @Value("${JWT_EXPIRES_IN:2592000000}") // Default 30 days
     private long jwtExpirationInMs;
 
-    private Key getSigningKey() {
+    private javax.crypto.SecretKey getSigningKey() {
         if (jwtSecret.length() < 32) {
             throw new IllegalArgumentException("JWT_SECRET must be at least 32 characters long for HMAC-SHA256 signature security.");
         }
@@ -37,16 +37,16 @@ public class JwtTokenProvider {
 
     public String getUserIdFromToken(String token) {
         Claims claims = Jwts.parser()
-                .setSigningKey(getSigningKey())
+                .verifyWith(getSigningKey())
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
         return claims.getSubject();
     }
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parser().setSigningKey(getSigningKey()).build().parseClaimsJws(token);
+            Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException ex) {
             return false;

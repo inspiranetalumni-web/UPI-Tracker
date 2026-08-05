@@ -24,7 +24,7 @@ public class SecurityConfig {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
-    @Value("${ALLOWED_ORIGIN:*}")
+    @Value("${ALLOWED_ORIGIN:}")
     private String allowedOrigin;
 
     @Bean

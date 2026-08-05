@@ -32,7 +32,8 @@ public class ExpenseService {
     private String getCategoryFromGemini(String payee) {
         if (geminiApiKey == null || geminiApiKey.isEmpty()) return "Other";
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiApiKey;
+            String sanitizedPayee = payee.replaceAll("[\r\n\"]", " ");
             // STRICT PRIVACY: Prompt only contains the payee name string, no other data.
             // HIGH EFFICIENCY: Few-shot prompt forces strict output format and improves accuracy for Indian names.
             String prompt = "Classify the Indian merchant into one of: Food & Dining, Transport, Grocery, Bills, Health, Shopping, Transfer, Other.\n" +
@@ -45,7 +46,7 @@ public class ExpenseService {
                             "Amazon -> Shopping\n" +
                             "Airtel -> Bills\n" +
                             "Rahul -> Transfer\n" +
-                            "Merchant: " + payee + "\n" +
+                            "Merchant: " + sanitizedPayee + "\n" +
                             "Category:";
             
             Map<String, Object> body = new HashMap<>();
