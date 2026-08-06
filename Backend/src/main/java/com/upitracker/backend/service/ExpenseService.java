@@ -247,6 +247,7 @@ public class ExpenseService {
             .whereEqualTo("userId", userId)
             .whereGreaterThanOrEqualTo("date", start)
             .whereLessThanOrEqualTo("date", end)
+            .orderBy("date", Query.Direction.DESCENDING)
             .get().get();
 
         List<Expense> allMonthExpenses = snapshot.getDocuments().stream()
@@ -323,7 +324,11 @@ public class ExpenseService {
             calEnd.add(Calendar.MILLISECOND, -1);
             Timestamp end = Timestamp.ofTimeSecondsAndNanos(calEnd.getTimeInMillis() / 1000, 999000000);
 
-            query = query.whereGreaterThanOrEqualTo("date", start).whereLessThanOrEqualTo("date", end);
+            query = query.whereGreaterThanOrEqualTo("date", start)
+                         .whereLessThanOrEqualTo("date", end)
+                         .orderBy("date", Query.Direction.DESCENDING);
+        } else {
+            query = query.orderBy("date", Query.Direction.DESCENDING);
         }
 
         var snapshot = query.get().get();
@@ -379,7 +384,7 @@ public class ExpenseService {
             return Map.of("insight", text);
         } catch (Exception e) {
             log.warn("Gemini insights failed: {}", e.getMessage());
-            return Map.of("insight", "Could not generate insights at the moment. Please try again later.");
+            return Map.of("insight", "Could not generate insights at the moment. Error: " + e.getMessage() + ". Please check your API key or quota.");
         }
     }
 
@@ -403,6 +408,7 @@ public class ExpenseService {
             .whereEqualTo("userId", userId)
             .whereGreaterThanOrEqualTo("date", start)
             .whereLessThanOrEqualTo("date", end)
+            .orderBy("date", Query.Direction.DESCENDING)
             .get().get();
 
         List<Expense> filtered = snapshot.getDocuments().stream()
