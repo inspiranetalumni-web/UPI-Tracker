@@ -228,18 +228,30 @@ public class ExpenseService {
 
     public Map<String, Object> getMonthlySummary(String userId, Integer month, Integer year) throws Exception {
         Firestore db = getDb();
-        var snapshot = db.collection("expenses").whereEqualTo("userId", userId).get().get();
-
+        
         int targetMonth = month != null ? month : Calendar.getInstance().get(Calendar.MONTH) + 1;
         int targetYear = year != null ? year : Calendar.getInstance().get(Calendar.YEAR);
 
-        List<Expense> allMonthExpenses = snapshot.getDocuments().stream().map(d -> d.toObject(Expense.class))
-            .filter(e -> {
-                if (e.getDate() == null) return false;
-                Calendar cal = Calendar.getInstance();
-                cal.setTime(e.getDate().toDate());
-                return (cal.get(Calendar.MONTH) + 1) == targetMonth && cal.get(Calendar.YEAR) == targetYear;
-            }).collect(Collectors.toList());
+        Calendar calStart = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        calStart.clear();
+        calStart.set(targetYear, targetMonth - 1, 1, 0, 0, 0);
+        Timestamp start = Timestamp.ofTimeSecondsAndNanos(calStart.getTimeInMillis() / 1000, 0);
+
+        Calendar calEnd = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        calEnd.clear();
+        calEnd.set(targetYear, targetMonth, 1, 0, 0, 0);
+        calEnd.add(Calendar.MILLISECOND, -1);
+        Timestamp end = Timestamp.ofTimeSecondsAndNanos(calEnd.getTimeInMillis() / 1000, 999000000);
+
+        var snapshot = db.collection("expenses")
+            .whereEqualTo("userId", userId)
+            .whereGreaterThanOrEqualTo("date", start)
+            .whereLessThanOrEqualTo("date", end)
+            .get().get();
+
+        List<Expense> allMonthExpenses = snapshot.getDocuments().stream()
+            .map(d -> d.toObject(Expense.class))
+            .collect(Collectors.toList());
 
         List<Expense> debitsOnly = allMonthExpenses.stream()
             .filter(e -> "debit".equals(e.getType() != null ? e.getType() : "debit"))
@@ -297,17 +309,26 @@ public class ExpenseService {
 
     public List<Expense> exportExpenses(String userId, Integer month, Integer year) throws Exception {
         Firestore db = getDb();
-        var snapshot = db.collection("expenses").whereEqualTo("userId", userId).get().get();
+        Query query = db.collection("expenses").whereEqualTo("userId", userId);
+
+        if (month != null && year != null) {
+            Calendar calStart = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+            calStart.clear();
+            calStart.set(year, month - 1, 1, 0, 0, 0);
+            Timestamp start = Timestamp.ofTimeSecondsAndNanos(calStart.getTimeInMillis() / 1000, 0);
+
+            Calendar calEnd = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+            calEnd.clear();
+            calEnd.set(year, month, 1, 0, 0, 0);
+            calEnd.add(Calendar.MILLISECOND, -1);
+            Timestamp end = Timestamp.ofTimeSecondsAndNanos(calEnd.getTimeInMillis() / 1000, 999000000);
+
+            query = query.whereGreaterThanOrEqualTo("date", start).whereLessThanOrEqualTo("date", end);
+        }
+
+        var snapshot = query.get().get();
 
         List<Expense> expenses = snapshot.getDocuments().stream().map(d -> d.toObject(Expense.class)).collect(Collectors.toList());
-        if (month != null && year != null) {
-            expenses = expenses.stream().filter(e -> {
-                if (e.getDate() == null) return false;
-                Calendar cal = Calendar.getInstance();
-                cal.setTime(e.getDate().toDate());
-                return (cal.get(Calendar.MONTH) + 1) == month && cal.get(Calendar.YEAR) == year;
-            }).collect(Collectors.toList());
-        }
         expenses.sort((a, b) -> b.getDate().compareTo(a.getDate()));
         return expenses;
     }
@@ -364,16 +385,29 @@ public class ExpenseService {
 
     public Map<String, Object> getYearlyStats(String userId, Integer year) throws Exception {
         Firestore db = getDb();
-        var snapshot = db.collection("expenses").whereEqualTo("userId", userId).get().get();
 
         int targetYear = year != null ? year : Calendar.getInstance().get(Calendar.YEAR);
-        List<Expense> filtered = snapshot.getDocuments().stream().map(d -> d.toObject(Expense.class))
-            .filter(e -> {
-                if (e.getDate() == null) return false;
-                Calendar cal = Calendar.getInstance();
-                cal.setTime(e.getDate().toDate());
-                return cal.get(Calendar.YEAR) == targetYear;
-            }).collect(Collectors.toList());
+
+        Calendar calStart = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        calStart.clear();
+        calStart.set(targetYear, 0, 1, 0, 0, 0);
+        Timestamp start = Timestamp.ofTimeSecondsAndNanos(calStart.getTimeInMillis() / 1000, 0);
+
+        Calendar calEnd = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        calEnd.clear();
+        calEnd.set(targetYear + 1, 0, 1, 0, 0, 0);
+        calEnd.add(Calendar.MILLISECOND, -1);
+        Timestamp end = Timestamp.ofTimeSecondsAndNanos(calEnd.getTimeInMillis() / 1000, 999000000);
+
+        var snapshot = db.collection("expenses")
+            .whereEqualTo("userId", userId)
+            .whereGreaterThanOrEqualTo("date", start)
+            .whereLessThanOrEqualTo("date", end)
+            .get().get();
+
+        List<Expense> filtered = snapshot.getDocuments().stream()
+            .map(d -> d.toObject(Expense.class))
+            .collect(Collectors.toList());
 
         Map<Integer, Map<String, Number>> monthMap = new HashMap<>();
         for (Expense e : filtered) {
