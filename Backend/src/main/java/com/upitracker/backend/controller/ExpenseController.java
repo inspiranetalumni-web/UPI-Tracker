@@ -20,7 +20,7 @@ public class ExpenseController {
     @PostMapping
     public ResponseEntity<?> createExpense(Authentication authentication, @Valid @RequestBody ExpenseRequest req) throws Exception {
         Object response = expenseService.createExpense(authentication.getName(), req);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(response);
     }
 
     @GetMapping

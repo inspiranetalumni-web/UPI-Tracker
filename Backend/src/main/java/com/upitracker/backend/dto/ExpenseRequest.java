@@ -23,4 +23,5 @@ public class ExpenseRequest {
     private String type;
     private Double accountBalance;
     private String accountName;
+    private Boolean isSelfTransfer;
 }

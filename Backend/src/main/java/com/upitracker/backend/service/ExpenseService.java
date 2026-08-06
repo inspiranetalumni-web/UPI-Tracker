@@ -8,6 +8,8 @@ import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.firebase.cloud.FirestoreClient;
 import com.upitracker.backend.dto.ExpenseRequest;
 import com.upitracker.backend.model.Expense;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.RestTemplate;
@@ -18,6 +20,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class ExpenseService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExpenseService.class);
 
     @Value("${GEMINI_API_KEY:}")
     private String geminiApiKey;
@@ -65,7 +69,7 @@ public class ExpenseService {
                 if (text.equalsIgnoreCase(c)) return c;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Gemini categorization failed for payee='{}': {}", payee, e.getMessage());
         }
         return "Other";
     }
@@ -99,7 +103,8 @@ public class ExpenseService {
 
         for (QueryDocumentSnapshot doc : dupSnapshot.getDocuments()) {
             Expense e = doc.toObject(Expense.class);
-            if (e.getAmount() != null && e.getAmount().equals(req.getAmount()) && e.getDate() != null && e.getType().equals(type)) {
+            String eType = e.getType() != null ? e.getType() : "debit"; // null-safe
+            if (e.getAmount() != null && e.getAmount().equals(req.getAmount()) && e.getDate() != null && type.equals(eType)) {
                 long diff = Math.abs(e.getDate().toDate().getTime() - expDate.toEpochMilli());
                 if (diff <= 3 * 60 * 1000) {
                     if (req.getUpiRef() != null && req.getUpiRef().equals(e.getUpiRef())) {
@@ -107,8 +112,8 @@ public class ExpenseService {
                         duplicateDoc = doc;
                         break;
                     } else {
-                        String p1 = e.getPayee().toLowerCase();
-                        String p2 = req.getPayee().toLowerCase();
+                        String p1 = e.getPayee() != null ? e.getPayee().toLowerCase() : "unknown";
+                        String p2 = req.getPayee() != null ? req.getPayee().toLowerCase() : "unknown";
                         if (p1.equals(p2) || p1.equals("unknown") || p2.equals("unknown")) {
                             isDuplicate = true;
                             duplicateDoc = doc;
@@ -148,6 +153,9 @@ public class ExpenseService {
         }
         if (req.getAccountName() != null) {
             data.put("accountName", req.getAccountName());
+        }
+        if (Boolean.TRUE.equals(req.getIsSelfTransfer())) {
+            data.put("isSelfTransfer", true);
         }
 
         var docRef = db.collection("expenses").add(data).get();
@@ -225,23 +233,37 @@ public class ExpenseService {
         int targetMonth = month != null ? month : Calendar.getInstance().get(Calendar.MONTH) + 1;
         int targetYear = year != null ? year : Calendar.getInstance().get(Calendar.YEAR);
 
-        List<Expense> debitsOnly = snapshot.getDocuments().stream().map(d -> d.toObject(Expense.class))
+        List<Expense> allMonthExpenses = snapshot.getDocuments().stream().map(d -> d.toObject(Expense.class))
             .filter(e -> {
-                if (e.getDate() == null || !"debit".equals(e.getType() != null ? e.getType() : "debit")) return false;
+                if (e.getDate() == null) return false;
                 Calendar cal = Calendar.getInstance();
                 cal.setTime(e.getDate().toDate());
                 return (cal.get(Calendar.MONTH) + 1) == targetMonth && cal.get(Calendar.YEAR) == targetYear;
             }).collect(Collectors.toList());
 
+        List<Expense> debitsOnly = allMonthExpenses.stream()
+            .filter(e -> "debit".equals(e.getType() != null ? e.getType() : "debit"))
+            .collect(Collectors.toList());
+
+        double totalDebit = 0;
+        double totalCredit = 0;
+
+        // Calculate credit (income) total
+        for (Expense e : allMonthExpenses) {
+            if ("credit".equals(e.getType()) && e.getAmount() != null) {
+                totalCredit += e.getAmount();
+            }
+        }
+
         Map<String, Map<String, Number>> catMap = new HashMap<>();
         Map<String, Map<String, Number>> dailyMap = new HashMap<>();
-        double total = 0;
 
         for (Expense e : debitsOnly) {
-            total += e.getAmount();
+            if (e.getAmount() == null) continue;
+            totalDebit += e.getAmount();
             
             // Category
-            String cat = e.getCategory();
+            String cat = e.getCategory() != null ? e.getCategory() : "Other";
             catMap.putIfAbsent(cat, new HashMap<>(Map.of("total", 0.0, "count", 0)));
             catMap.get(cat).put("total", catMap.get(cat).get("total").doubleValue() + e.getAmount());
             catMap.get(cat).put("count", catMap.get(cat).get("count").intValue() + 1);
@@ -265,7 +287,9 @@ public class ExpenseService {
 
         return Map.of(
             "month", targetMonth, "year", targetYear,
-            "total", total, "count", debitsOnly.size(),
+            "total", totalDebit,
+            "totalIncome", totalCredit,
+            "count", debitsOnly.size(),
             "categoryBreakdown", categoryBreakdown,
             "dailyTrend", dailyTrend
         );
@@ -333,7 +357,7 @@ public class ExpenseService {
             
             return Map.of("insight", text);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Gemini insights failed: {}", e.getMessage());
             return Map.of("insight", "Could not generate insights at the moment. Please try again later.");
         }
     }
@@ -358,7 +382,8 @@ public class ExpenseService {
             cal.setTime(e.getDate().toDate());
             int m = cal.get(Calendar.MONTH) + 1;
             monthMap.putIfAbsent(m, new HashMap<>(Map.of("total", 0.0, "count", 0)));
-            monthMap.get(m).put("total", monthMap.get(m).get("total").doubleValue() + e.getAmount());
+            double amt = e.getAmount() != null ? e.getAmount() : 0.0; // H8: null-safe
+            monthMap.get(m).put("total", monthMap.get(m).get("total").doubleValue() + amt);
             monthMap.get(m).put("count", monthMap.get(m).get("count").intValue() + 1);
         }
 

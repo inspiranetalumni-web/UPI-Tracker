@@ -18,4 +18,5 @@ public class Expense {
     private Double accountBalance;
     private String accountName;
     private String createdAt;
+    private Boolean isSelfTransfer;
 }
