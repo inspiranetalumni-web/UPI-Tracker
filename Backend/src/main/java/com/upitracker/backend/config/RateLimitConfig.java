@@ -7,35 +7,55 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
+import java.util.function.Supplier;
 
 @Configuration
 public class RateLimitConfig {
 
-    @Bean
-    public Bucket apiBucket() {
-        /*
-         * ⚠️ CRITICAL ARCHITECTURAL WARNING (5-10 YEAR SCALABILITY) ⚠️
-         *
-         * This Bucket4j implementation uses an IN-MEMORY token bucket. 
-         * If you deploy this backend to multiple instances (e.g., behind an AWS Application 
-         * Load Balancer, Vercel, Railway, etc.), the rate limit will NOT synchronize across servers.
-         * An attacker could spam the load balancer and easily bypass the limit.
-         *
-         * BEFORE HORIZONTAL SCALING:
-         * You MUST migrate this to a distributed cache.
-         * Replace this in-memory Bucket with the Bucket4j JCache/Redis integration:
-         * 1. Add dependency: 'com.bucket4j:bucket4j-redis'
-         * 2. Configure a RedissonClient
-         * 3. Return RedissonBasedProxyManager.builder().build(redissonClient).builder().build(key, config)
-         */
-         
-        // Limit: 100 requests per minute per server instance
-        Bandwidth limit = Bandwidth.builder()
-                .capacity(100)
-                .refillGreedy(100, Duration.ofMinutes(1))
-                .build();
+    /**
+     * Global server-wide bucket: 500 requests per minute across all users.
+     * Protects against basic DDoS. Per-user limit (below) is the real enforcement.
+     *
+     * ⚠️ SCALE-OUT WARNING: This is in-memory. For multi-instance deployments,
+     * migrate to Bucket4j Redis integration before horizontal scaling.
+     */
+    @Bean("globalBucket")
+    public Bucket globalBucket() {
         return Bucket.builder()
-                .addLimit(limit)
+                .addLimit(Bandwidth.builder()
+                        .capacity(500)
+                        .refillGreedy(500, Duration.ofMinutes(1))
+                        .build())
+                .build();
+    }
+
+    /**
+     * Factory for per-user buckets: 60 requests per minute per authenticated user.
+     * Ensures one misbehaving user cannot starve other users.
+     */
+    @Bean("userBucketFactory")
+    public Supplier<Bucket> userBucketFactory() {
+        return () -> Bucket.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(60)
+                        .refillGreedy(60, Duration.ofMinutes(1))
+                        .build())
+                .build();
+    }
+
+    /**
+     * Stricter bucket for AI insights endpoint.
+     * gemini-2.5-flash free tier: 500 RPD = ~20/hour = ~1 every 3 minutes.
+     * Allow max 10 per hour per user (server-side cache handles the rest).
+     */
+    @Bean("insightsBucketFactory")
+    public Supplier<Bucket> insightsBucketFactory() {
+        return () -> Bucket.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(10)
+                        .refillGreedy(10, Duration.ofHours(1))
+                        .build())
                 .build();
     }
 }
+

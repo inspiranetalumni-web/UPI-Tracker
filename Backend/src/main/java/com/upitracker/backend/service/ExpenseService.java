@@ -16,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +30,10 @@ public class ExpenseService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper mapper = new ObjectMapper();
 
+    // 1-hour insights cache per userId: Map<userId, {text, timestamp, spendHash}>
+    private final ConcurrentHashMap<String, Map<String, Object>> insightsCache = new ConcurrentHashMap<>();
+    private static final long INSIGHTS_CACHE_TTL_MS = 60L * 60 * 1000; // 1 hour
+
     private Firestore getDb() {
         return FirestoreClient.getFirestore();
     }
@@ -36,7 +41,7 @@ public class ExpenseService {
     private String getCategoryFromGemini(String payee) {
         if (geminiApiKey == null || geminiApiKey.isEmpty()) return "Other";
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" + geminiApiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + geminiApiKey;
             String sanitizedPayee = payee.replaceAll("[\r\n\"]", " ");
             // STRICT PRIVACY: Prompt only contains the payee name string, no other data.
             // HIGH EFFICIENCY: Few-shot prompt forces strict output format and improves accuracy for Indian names.
@@ -365,10 +370,26 @@ public class ExpenseService {
         if (geminiApiKey == null || geminiApiKey.isEmpty()) {
             return Map.of("insight", "Add GEMINI_API_KEY to your backend to unlock AI insights.");
         }
+
+        // 1-hour cache per user keyed on spend hash — avoids exhausting Gemini quota
+        String spendHash = String.valueOf(categoryTotals.hashCode() ^ Double.hashCode(total));
+        Map<String, Object> cached = insightsCache.get(userId);
+        if (cached != null) {
+            long cacheAge = System.currentTimeMillis() - (Long) cached.get("timestamp");
+            if (cacheAge < INSIGHTS_CACHE_TTL_MS && spendHash.equals(cached.get("hash"))) {
+                log.info("Returning cached insight for userId={}", userId);
+                return Map.of("insight", cached.get("text"), "cached", true);
+            }
+        }
         
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" + geminiApiKey;
-            String prompt = String.format("I have spent a total of ₹%.2f. Here is the breakdown: %s. Give me ONE short, crisp, highly personalized piece of financial advice or insight based strictly on this spending. Maximum 2 sentences. Do not use asterisks or markdown formatting.", total, categoryTotals.toString());
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey;
+            String prompt = String.format(
+                "Act as a personal finance advisor. I have spent a total of ₹%.2f this period. " +
+                "Category breakdown: %s. " +
+                "Give me ONE short, crisp, actionable financial insight personalized to this spending pattern. " +
+                "Maximum 2 sentences. No markdown, no asterisks, plain text only.",
+                total, categoryTotals.toString());
             
             Map<String, Object> body = new HashMap<>();
             body.put("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
@@ -381,10 +402,22 @@ public class ExpenseService {
             com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response);
             String text = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText().trim();
             
+            // Cache the result
+            Map<String, Object> cacheEntry = new HashMap<>();
+            cacheEntry.put("text", text);
+            cacheEntry.put("timestamp", System.currentTimeMillis());
+            cacheEntry.put("hash", spendHash);
+            insightsCache.put(userId, cacheEntry);
+            
             return Map.of("insight", text);
         } catch (Exception e) {
             log.warn("Gemini insights failed: {}", e.getMessage());
-            return Map.of("insight", "Could not generate insights at the moment. Error: " + e.getMessage() + ". Please check your API key or quota.");
+            // Return cached result if available, even if stale, rather than showing an error
+            if (cached != null && cached.get("text") != null) {
+                return Map.of("insight", cached.get("text"), "cached", true, "stale", true);
+            }
+            String errMsg = e.getMessage() != null ? e.getMessage().replaceAll(geminiApiKey, "[REDACTED]") : "Unknown error";
+            return Map.of("insight", "Could not generate insights. " + errMsg);
         }
     }
 
