@@ -36,7 +36,7 @@ public class ExpenseService {
     private String getCategoryFromGemini(String payee) {
         if (geminiApiKey == null || geminiApiKey.isEmpty()) return "Other";
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiApiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + geminiApiKey;
             String sanitizedPayee = payee.replaceAll("[\r\n\"]", " ");
             // STRICT PRIVACY: Prompt only contains the payee name string, no other data.
             // HIGH EFFICIENCY: Few-shot prompt forces strict output format and improves accuracy for Indian names.
@@ -367,7 +367,7 @@ public class ExpenseService {
         }
         
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + geminiApiKey;
             String prompt = String.format("I have spent a total of ₹%.2f. Here is the breakdown: %s. Give me ONE short, crisp, highly personalized piece of financial advice or insight based strictly on this spending. Maximum 2 sentences. Do not use asterisks or markdown formatting.", total, categoryTotals.toString());
             
             Map<String, Object> body = new HashMap<>();
