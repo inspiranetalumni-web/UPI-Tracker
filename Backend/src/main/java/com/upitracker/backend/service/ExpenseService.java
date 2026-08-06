@@ -13,7 +13,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.ResponseEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -418,6 +423,36 @@ public class ExpenseService {
             }
             String errMsg = e.getMessage() != null ? e.getMessage().replaceAll(geminiApiKey, "[REDACTED]") : "Unknown error";
             return Map.of("insight", "Could not generate insights. " + errMsg);
+        }
+    }
+
+    private String callGeminiApi(String prompt) throws Exception {
+        if (geminiApiKey == null || geminiApiKey.isEmpty()) return "Track your budget on the app!";
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + geminiApiKey;
+        String reqBody = "{ \"contents\": [{ \"parts\": [{\"text\": \"" + prompt.replaceAll("\"", "\\\\\"") + "\"}] }] }";
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> request = new HttpEntity<>(reqBody, headers);
+        
+        ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+        JsonNode root = mapper.readTree(response.getBody());
+        return root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText().trim();
+    }
+
+    public Map<String, Object> getQuickInsight(String userId, Map<String, Object> txData) {
+        try {
+            double amount = Double.parseDouble(txData.getOrDefault("amount", "0").toString());
+            String type = (String) txData.getOrDefault("type", "debit");
+            String category = (String) txData.getOrDefault("category", "Other");
+            String payee = (String) txData.getOrDefault("payee", "Unknown");
+
+            String prompt = String.format("I just made a %s transaction of Rs %.2f to '%s' (Category: %s). Give me a 1-sentence, crisp financial insight or budget reminder based on this context. Keep it under 80 characters.", type, amount, payee, category);
+            String insight = callGeminiApi(prompt);
+            return Map.of("insight", insight);
+        } catch (Exception e) {
+            log.error("Quick insight failed: {}", e.getMessage());
+            return Map.of("insight", "Track your budget on the app!");
         }
     }
 

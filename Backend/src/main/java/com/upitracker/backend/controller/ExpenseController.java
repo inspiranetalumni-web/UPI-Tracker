@@ -98,4 +98,12 @@ public class ExpenseController {
         var response = expenseService.updateExpense(authentication.getName(), id, body);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/insights/quick")
+    public ResponseEntity<?> getQuickInsight(
+            Authentication authentication, 
+            @RequestBody java.util.Map<String, Object> body) throws Exception {
+        var response = expenseService.getQuickInsight(authentication.getName(), body);
+        return ResponseEntity.ok(response);
+    }
 }
