@@ -168,8 +168,17 @@ public class ExpenseService {
             data.put("isSelfTransfer", true);
         }
 
-        var docRef = db.collection("expenses").add(data).get();
-        data.put("_id", docRef.getId());
+        String docId;
+        if (req.getUpiRef() != null && !req.getUpiRef().trim().isEmpty()) {
+            docId = userId + "_" + req.getUpiRef().trim() + "_" + type;
+        } else {
+            long amtCents = Math.round(req.getAmount() * 100.0);
+            long minuteBucket = expDate.getEpochSecond() / 60;
+            docId = userId + "_" + amtCents + "_" + minuteBucket + "_" + type;
+        }
+
+        db.collection("expenses").document(docId).set(data).get();
+        data.put("_id", docId);
         data.put("date", expDate.toString());
         return data;
     }
