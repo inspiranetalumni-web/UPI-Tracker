@@ -49,8 +49,14 @@ public class HtmlExporter {
 
         for (Expense e : expenses) {
             sb.append("                <tr>\n");
-            sb.append("                    <td>").append(e.getDate() != null ? e.getDate().format(formatter) : "").append("</td>\n");
-            sb.append("                    <td>").append(escapeHtml(e.getName())).append("</td>\n");
+            
+            String dateStr = "";
+            if (e.getDate() != null) {
+                dateStr = e.getDate().toDate().toInstant().atZone(java.time.ZoneId.systemDefault()).format(formatter);
+            }
+            
+            sb.append("                    <td>").append(dateStr).append("</td>\n");
+            sb.append("                    <td>").append(escapeHtml(e.getPayee())).append("</td>\n");
             sb.append("                    <td>").append(escapeHtml(e.getCategory())).append("</td>\n");
             sb.append("                    <td>").append(escapeHtml(e.getUpiApp())).append("</td>\n");
             sb.append("                    <td>").append(escapeHtml(e.getType())).append("</td>\n");
