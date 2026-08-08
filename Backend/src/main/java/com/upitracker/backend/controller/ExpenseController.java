@@ -66,6 +66,12 @@ public class ExpenseController {
                     .header("Content-Type", "text/csv")
                     .header("Content-Disposition", "attachment; filename=expenses.csv")
                     .body(csv);
+        } else if ("html".equalsIgnoreCase(format)) {
+            String html = com.upitracker.backend.util.HtmlExporter.export(expenses);
+            return ResponseEntity.ok()
+                    .header("Content-Type", "text/html")
+                    .header("Content-Disposition", "attachment; filename=expenses.html")
+                    .body(html);
         }
         return ResponseEntity.ok(expenses);
     }

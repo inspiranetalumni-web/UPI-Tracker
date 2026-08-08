@@ -397,7 +397,7 @@ public class ExpenseService {
         }
         
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
             String prompt = String.format(
                 "Act as a personal finance advisor. I have spent a total of ₹%.2f this period. " +
                 "Category breakdown: %s. " +
@@ -437,7 +437,7 @@ public class ExpenseService {
 
     private String callGeminiApi(String prompt) throws Exception {
         if (geminiApiKey == null || geminiApiKey.isEmpty()) return "Track your budget on the app!";
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + geminiApiKey;
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
         String reqBody = "{ \"contents\": [{ \"parts\": [{\"text\": \"" + prompt.replaceAll("\"", "\\\\\"") + "\"}] }] }";
         
         HttpHeaders headers = new HttpHeaders();
